@@ -797,7 +797,7 @@
   function initNotice() {
     if (CFG.showDisclaimerOnFirstVisit === false || store.get('npt_ack_v1', false)) return;
     $('ackModal').hidden = false; $('ackOk').focus();
-    $('ackOk').onclick = () => { store.set('npt_ack_v1', true); $('ackModal').hidden = true; };
+    $('ackOk').onclick = () => { store.set('npt_ack_v1', true); $('ackModal').hidden = true; window.dispatchEvent(new CustomEvent('pp:acked')); };   // js/guide.js offers the tour
   }
 
   // Shared helpers for the add-on screens (js/reality.js, js/challenge.js, js/options.js).
