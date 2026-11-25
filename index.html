@@ -40,6 +40,7 @@
   <div id="quote" class="quote"></div>
 </header>
 <nav id="tabs">
+  <button data-tab="chart">Chart</button>
   <button data-tab="backtest" class="active">Backtest</button>
   <button data-tab="library">Strategies</button>
   <button data-tab="scanner">Scanner</button>
@@ -52,6 +53,31 @@
 </nav>
 
 <main>
+<!-- ═════════════ CHART (opens when you pick a stock in search) ═════════════ -->
+<section id="tab-chart" class="tab">
+  <div class="card cv-card" id="cvCard">
+    <div class="toolbar wrap">
+      <div class="seg" id="cvType"><button data-t="candle">Candles</button><button data-t="bar">Bars</button><button data-t="line">Line</button><button data-t="area">Area</button><button data-t="ha">Heikin Ashi</button></div>
+      <div class="seg" id="cvRanges"><button>1M</button><button>3M</button><button>6M</button><button>1Y</button><button>3Y</button><button>5Y</button><button>All</button></div>
+      <label class="chk"><input type="checkbox" id="cvVol" checked> Volume</label>
+      <label class="chk"><input type="checkbox" id="cvLog"> Log scale</label>
+      <span class="spacer"></span>
+      <button id="cvMax" title="Full screen (Esc to exit)">⛶ Full screen</button>
+    </div>
+    <div class="toolbar wrap">
+      <select id="cvIndPicker"><option value="">+ Indicator</option></select>
+      <button id="cvDraw" title="Then tap the chart where you want a horizontal line">─ Draw line</button>
+      <button id="cvClear" class="ghost">Clear lines</button>
+      <span id="cvChips"></span>
+    </div>
+    <div class="cv-wrap"><div id="cvLegend" class="cv-legend"></div><div id="cvChart" class="chart cv-chart"></div></div>
+    <div id="cvPanes"></div>
+  </div>
+  <div id="cvStats" class="headline"></div>
+  <div class="card toolbar wrap cv-actions"><span class="muted small">Do more with <b class="curSym"></b>:</span>
+    <button data-goto="backtest">Backtest a strategy</button><button data-goto="paper">Paper trade</button><button data-goto="replay">Practise in replay</button></div>
+</section>
+
 <!-- ═════════════ BACKTEST ═════════════ -->
 <section id="tab-backtest" class="tab active">
   <aside class="side">

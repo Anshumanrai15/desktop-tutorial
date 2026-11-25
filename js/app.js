@@ -157,6 +157,7 @@
     if (tab === 'paper') renderPaper();
     if (tab === 'replay') rpLoad();
     if (tab === 'library') renderLibrary();
+    if (tab === 'chart') cvRender();
   }
   function renderQuote() {
     const B = DB[S.sym]; if (!B) return; const n = B.c.length, px = B.c[n - 1], ch = dayChg(S.sym);
@@ -164,7 +165,8 @@
     $('quote').innerHTML = `<span class="sym">${esc(S.sym)}</span><span class="nm" title="${esc(nameOf(S.sym))}">${esc(nameOf(S.sym))}</span><span class="px">${fmt(px)}</span><span class="${cls(ch)}">${pct(ch)}</span>
       <span class="muted small" title="52-week range and 1-year return">52W ${fmt(lo, 0)}–${fmt(hi, 0)} · 1Y <span class="${cls(r1)}">${pct(r1, 1)}</span></span>`;
   }
-  combo($('stockSearch'), $('stockDD'), { source: stockSource, onPick: s => setSymbol(s), display: () => '' });
+  // Picking a stock in the header search opens it in the Chart tab.
+  combo($('stockSearch'), $('stockDD'), { source: stockSource, onPick: async s => { await setSymbol(s); gotoTab('chart'); }, display: () => '' });
   document.addEventListener('keydown', e => { if ((e.key === '/' || (e.key === 'k' && (e.ctrlKey || e.metaKey))) && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('stockSearch').focus(); } });
 
   // ═════════ TABS ═════════
@@ -526,6 +528,126 @@
     renderData(); updateStatus(); if (ok) toast(`Imported ${ok} file(s). Search "${lastSym}" to open it.`); };
   $('clearImported').onclick = async () => { if (!confirm('Delete all CSV-imported series from this browser?')) return; await idbClear(); location.reload(); };
   onTab.data = renderData;
+
+  // ═════════ CHART VIEW: full chart with indicators, chart types and drawing ═════════
+  const cv = { chart: null, main: null, vol: null, overlays: [], panes: [], lineObjs: [], sym: null, idx: new Map(), drawing: false,
+    type: store.get('npt_cv_type', 'candle'), range: store.get('npt_cv_range', '1Y') };
+  const cvInds = store.get('npt_cv_inds', [{ id: 'ema', params: { period: 20 } }, { id: 'ema', params: { period: 50 } }, { id: 'rsi', params: { period: 14 } }])
+    .map(x => ({ def: INDICATORS.find(i => i.id === x.id), params: x.params })).filter(x => x.def);
+  const cvSaveInds = () => store.set('npt_cv_inds', cvInds.map(x => ({ id: x.def.id, params: x.params })));
+  const cvLines = () => store.get('npt_cv_lines', {});
+  const fmtVol = v => (v >= 1e7 ? (v / 1e7).toFixed(2) + ' Cr' : v >= 1e5 ? (v / 1e5).toFixed(2) + ' L' : fmt(v, 0));
+  function cvInit() {
+    if (cv.chart) return;
+    cv.chart = LC.createChart($('cvChart'), chartOpts(520)); autoResize(cv.chart, $('cvChart')); cv.sync = syncGroup(); cv.sync.add(cv.chart);
+    cv.vol = cv.chart.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false });
+    cv.chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+    cv.chart.subscribeCrosshairMove(cvLegend);
+    cv.chart.subscribeClick(p => {
+      if (!cv.drawing || !p.point || !cv.main) return;
+      const price = cv.main.coordinateToPrice(p.point.y); if (price == null || !isFinite(price)) return;
+      const all = cvLines(); (all[cv.sym] = all[cv.sym] || []).push(+price.toFixed(2)); store.set('npt_cv_lines', all);
+      cvSetDrawing(false); cvDrawLines(); toast('Line added at ₹' + fmt(price));
+    });
+    $('cvIndPicker').innerHTML += '<optgroup label="On price chart">' + INDICATORS.filter(i => i.overlay).map(i => `<option value="${i.id}">${i.name}</option>`).join('') + '</optgroup><optgroup label="Below chart">' + INDICATORS.filter(i => !i.overlay).map(i => `<option value="${i.id}">${i.name}</option>`).join('') + '</optgroup>';
+    $('cvIndPicker').onchange = e => { const def = INDICATORS.find(i => i.id === e.target.value); e.target.value = ''; if (!def) return;
+      const params = {}; def.params.forEach(p => (params[p.name] = p.def)); cvInds.push({ def, params }); cvSaveInds(); cvDrawInds(DB[cv.sym]); };
+    $('cvType').onclick = e => { const b = e.target.closest('button'); if (!b) return; cv.type = b.dataset.t; store.set('npt_cv_type', cv.type); const r = cv.chart.timeScale().getVisibleLogicalRange(); cvMakeSeries(DB[cv.sym]); if (r) cv.chart.timeScale().setVisibleLogicalRange(r); };
+    $('cvRanges').onclick = e => { if (e.target.tagName !== 'BUTTON') return; cv.range = e.target.textContent; store.set('npt_cv_range', cv.range); cvApplyRange(); };
+    $('cvVol').onchange = () => cv.vol.applyOptions({ visible: $('cvVol').checked });
+    $('cvLog').onchange = () => cv.chart.priceScale('right').applyOptions({ mode: $('cvLog').checked ? 1 : 0 });
+    $('cvDraw').onclick = () => cvSetDrawing(!cv.drawing);
+    $('cvClear').onclick = () => { const all = cvLines(); delete all[cv.sym]; store.set('npt_cv_lines', all); cvDrawLines(); };
+    $('cvMax').onclick = () => cvMaximize(!$('cvCard').classList.contains('cv-max'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('cvCard').classList.contains('cv-max')) cvMaximize(false); if (cv.drawing) cvSetDrawing(false); } });
+  }
+  function cvSetDrawing(on) { cv.drawing = on; $('cvDraw').classList.toggle('on', on); $('cvDraw').textContent = on ? 'Tap the chart…' : '─ Draw line'; }
+  function cvMaximize(on) { $('cvCard').classList.toggle('cv-max', on); document.body.classList.toggle('noscroll', on); $('cvMax').textContent = on ? '✕ Exit full screen' : '⛶ Full screen'; window.dispatchEvent(new Event('resize')); }
+  function cvMakeSeries(B) {
+    if (!B) return;
+    if (cv.main) { cv.chart.removeSeries(cv.main); cv.main = null; }
+    const up = '#22c55e', dn = '#ef4444';
+    if (cv.type === 'bar') { cv.main = cv.chart.addBarSeries({ upColor: up, downColor: dn }); cv.main.setData(B.d.map((t, i) => ({ time: t, open: B.o[i], high: B.h[i], low: B.l[i], close: B.c[i] }))); }
+    else if (cv.type === 'line') { cv.main = cv.chart.addLineSeries({ color: '#3b82f6', lineWidth: 2 }); cv.main.setData(B.d.map((t, i) => ({ time: t, value: B.c[i] }))); }
+    else if (cv.type === 'area') { cv.main = cv.chart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,0.3)', bottomColor: 'rgba(59,130,246,0)', lineWidth: 2 }); cv.main.setData(B.d.map((t, i) => ({ time: t, value: B.c[i] }))); }
+    else if (cv.type === 'ha') { const h = T.heikin(B); cv.main = cv.chart.addCandlestickSeries(candleOpts); cv.main.setData(B.d.map((t, i) => ({ time: t, open: h.o[i], high: h.h[i], low: h.l[i], close: h.c[i] }))); }
+    else { cv.type = 'candle'; cv.main = cv.chart.addCandlestickSeries(candleOpts); cv.main.setData(B.d.map((t, i) => ({ time: t, open: B.o[i], high: B.h[i], low: B.l[i], close: B.c[i] }))); }
+    document.querySelectorAll('#cvType button').forEach(b => b.classList.toggle('on', b.dataset.t === cv.type));
+    cvDrawLines();
+  }
+  function cvDrawLines() {
+    if (!cv.main) return;
+    cv.lineObjs.forEach(l => { try { cv.main.removePriceLine(l); } catch { } }); cv.lineObjs = [];
+    (cvLines()[cv.sym] || []).forEach(p => cv.lineObjs.push(cv.main.createPriceLine({ price: p, color: '#f5b544', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' })));
+  }
+  function cvDrawInds(B) {
+    if (!B) return;
+    cv.overlays.forEach(x => cv.chart.removeSeries(x)); cv.overlays = [];
+    cv.panes.forEach(p => { cv.sync.remove(p.chart); p.ro.disconnect(); p.chart.remove(); }); cv.panes = []; $('cvPanes').innerHTML = '';
+    let ci = 0;
+    cvInds.forEach(ind => {
+      const out = ind.def.calc(B, ind.params);
+      if (ind.def.overlay) {
+        Object.entries(out).forEach(([k, arr]) => { const x = cv.chart.addLineSeries({ color: COLORS[ci++ % COLORS.length], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineVisible: !ind.def.dots, pointMarkersVisible: !!ind.def.dots, crosshairMarkerVisible: false }); x.setData(line(arr, B)); cv.overlays.push(x); });
+      } else {
+        const box = el('div', { className: 'pane' }); box.appendChild(el('div', { className: 'lbl', textContent: ind.def.name + (ind.def.params.length ? ' (' + Object.values(ind.params).join(', ') + ')' : '') })); $('cvPanes').appendChild(box);
+        const ch = LC.createChart(box, chartOpts(130)); const ro = autoResize(ch, box); let first = null, k2 = 0;
+        Object.entries(out).forEach(([k, arr]) => {
+          let x; if (ind.def.hist === k) { x = ch.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false }); x.setData(line(arr, B).map(p => ({ ...p, color: p.value >= 0 ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)' }))); }
+          else { x = ch.addLineSeries({ color: COLORS[k2++ % COLORS.length], lineWidth: 1, priceLineVisible: false, crosshairMarkerVisible: false }); x.setData(line(arr, B)); }
+          first = first || x; });
+        (ind.def.levels || []).forEach(lv => first.createPriceLine({ price: lv, color: '#3a4558', lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
+        cv.panes.push({ chart: ch, ro }); cv.sync.add(ch);
+      }
+    });
+    const r = cv.chart.timeScale().getVisibleLogicalRange(); if (r) cv.panes.forEach(p => p.chart.timeScale().setVisibleLogicalRange(r));
+    $('cvChips').innerHTML = '';
+    cvInds.forEach((ind, i) => { const c = el('span', { className: 'chip', title: 'Click to change settings' }, `${esc(ind.def.name.replace(/\s*\(.*\)/, ''))}${ind.def.params.length ? ' ' + Object.values(ind.params).join(',') : ''} <b title="Remove">✕</b>`);
+      c.querySelector('b').onclick = ev => { ev.stopPropagation(); cvInds.splice(i, 1); cvSaveInds(); cvDrawInds(DB[cv.sym]); };
+      c.onclick = () => { if (!ind.def.params.length) return; const v = prompt(`${ind.def.name}\nSettings (${ind.def.params.map(p => p.name).join(', ')}):`, Object.values(ind.params).join(',')); if (v === null) return;
+        v.split(',').forEach((x, k) => { const p = ind.def.params[k]; if (p && x.trim() !== '' && isFinite(+x)) ind.params[p.name] = +x; }); cvSaveInds(); cvDrawInds(DB[cv.sym]); };
+      $('cvChips').appendChild(c); });
+  }
+  function cvApplyRange() {
+    const B = DB[cv.sym]; if (!B) return; document.querySelectorAll('#cvRanges button').forEach(b => b.classList.toggle('on', b.textContent === cv.range));
+    if (cv.range === 'All') return cv.chart.timeScale().fitContent();
+    const days = { '1M': 31, '3M': 92, '6M': 183, '1Y': 365, '3Y': 1096, '5Y': 1827 }[cv.range] || 365; const to = B.d[B.d.length - 1];
+    const from = new Date(new Date(to).getTime() - days * 864e5).toISOString().slice(0, 10);
+    try { cv.chart.timeScale().setVisibleRange({ from: from < B.d[0] ? B.d[0] : from, to }); } catch { cv.chart.timeScale().fitContent(); }
+  }
+  function cvLegend(param) {
+    const B = DB[cv.sym]; if (!B) return;
+    let i = B.d.length - 1;
+    if (param && param.time) { const t = param.time; const key = typeof t === 'string' ? t : typeof t === 'object' ? `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}` : new Date(t * 1000).toISOString().slice(0, 10); if (cv.idx.has(key)) i = cv.idx.get(key); }
+    const ch = i > 0 ? (B.c[i] / B.c[i - 1] - 1) * 100 : 0;
+    $('cvLegend').innerHTML = `<b>${esc(cv.sym)}</b> <span class="muted">${B.d[i]}</span> O <b>${fmt(B.o[i])}</b> H <b>${fmt(B.h[i])}</b> L <b>${fmt(B.l[i])}</b> C <b>${fmt(B.c[i])}</b> <span class="${cls(ch)}">${pct(ch)}</span> <span class="muted">Vol ${fmtVol(B.v[i])}</span>`;
+  }
+  function cvStats(B) {
+    const n = B.c.length, last = B.c[n - 1], y = Math.max(0, n - 252);
+    let hi52 = -Infinity, lo52 = Infinity; for (let i = y; i < n; i++) { if (B.h[i] > hi52) hi52 = B.h[i]; if (B.l[i] < lo52) lo52 = B.l[i]; }
+    let ath = -Infinity, athI = 0; for (let i = 0; i < n; i++) if (B.h[i] > ath) { ath = B.h[i]; athI = i; }
+    const r1 = (last / B.c[y] - 1) * 100, yrs = (new Date(B.d[n - 1]) - new Date(B.d[0])) / 31557600000;
+    const i5 = n > 1260 ? n - 1260 : -1, cagr5 = i5 >= 0 ? (Math.pow(last / B.c[i5], 1 / 5) - 1) * 100 : NaN;
+    let av = 0, k = 0; for (let i = Math.max(0, n - 20); i < n; i++) { av += B.v[i]; k++; } av /= k || 1;
+    metricCards($('cvStats'), [
+      ['Latest day', fmt(last), dayChg(cv.sym), `O ${fmt(B.o[n - 1])} · H ${fmt(B.h[n - 1])} · L ${fmt(B.l[n - 1])}`],
+      ['52-week range', `${fmt(lo52, 0)}–${fmt(hi52, 0)}`, undefined, `${fmt((last / hi52 - 1) * 100, 1)}% from 52W high`],
+      ['All-time high', fmt(ath), undefined, `${B.d[athI]} · ${fmt((last / ath - 1) * 100, 1)}% away`],
+      ['1-year return', pct(r1, 1), r1, `Since ${B.d[y]}`],
+      ['5-year CAGR', isFinite(cagr5) ? pct(cagr5, 1) : '—', isFinite(cagr5) ? cagr5 : undefined, isFinite(cagr5) ? 'per year' : 'less than 5 years of data'],
+      ['Avg volume (20D)', fmtVol(av), undefined, `History: ${fmt(yrs, 1)} years from ${B.d[0]}`]]);
+  }
+  function cvRender() {
+    cvInit(); const B = DB[S.sym]; if (!B) return;
+    if (cv.sym !== S.sym) {
+      cv.sym = S.sym; cv.idx = new Map(B.d.map((d, i) => [d, i]));
+      cvMakeSeries(B);
+      cv.vol.setData(B.d.map((t, i) => ({ time: t, value: B.v[i], color: B.c[i] >= B.o[i] ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)' })));
+      cv.vol.applyOptions({ visible: $('cvVol').checked });
+      cvDrawInds(B); cvApplyRange(); cvStats(B); cvLegend();
+    }
+  }
+  onTab.chart = cvRender;
 
   // ═════════ SUPPORT: UPI donations, broker referrals, first-visit notice ═════════
   // Everything here is driven by js/config.js; features with no settings stay hidden.
