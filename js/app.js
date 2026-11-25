@@ -13,7 +13,10 @@
   const STRATS = window.STRATEGIES, byId = Object.fromEntries(STRATS.map(s => [s.id, s]));
   const T = window.TA, LC = window.LightweightCharts;
   const chartOpts = h => ({ height: h, layout: { background: { color: '#121822' }, textColor: '#8592a8', fontSize: 11 }, grid: { vertLines: { color: '#1a2130' }, horzLines: { color: '#1a2130' } },
-    rightPriceScale: { borderColor: '#232c3b' }, timeScale: { borderColor: '#232c3b' }, crosshair: { mode: 0 } });
+    rightPriceScale: { borderColor: '#232c3b' }, timeScale: { borderColor: '#232c3b' }, crosshair: { mode: 0 },
+    handleScroll: { vertTouchDrag: false } });   // vertical swipes scroll the page on phones
+  // Short axis labels for rupee amounts: ₹3.25 Cr, ₹12.4 L, ₹85,000
+  const compactINR = v => { const a = Math.abs(v); return (v < 0 ? '-₹' : '₹') + (a >= 1e7 ? (a / 1e7).toFixed(2) + ' Cr' : a >= 1e5 ? (a / 1e5).toFixed(1) + ' L' : Math.round(a).toLocaleString('en-IN')); };
   const COLORS = ['#f5b544', '#a78bfa', '#22d3ee', '#f472b6', '#84cc16', '#fb923c', '#60a5fa', '#e879f9'];
   const line = (arr, B) => { const out = []; for (let i = 0; i < arr.length; i++) if (arr[i] === arr[i] && arr[i] != null && isFinite(arr[i])) out.push({ time: B.d[i], value: arr[i] }); return out; };
 
@@ -170,11 +173,15 @@
   $('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return;
     document.querySelectorAll('#tabs button[data-tab]').forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.id === 'tab-' + b.dataset.tab));
+    b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     onTab[b.dataset.tab] && onTab[b.dataset.tab](); window.dispatchEvent(new Event('resize')); });
   const gotoTab = t => document.querySelector(`#tabs button[data-tab="${t}"]`).click();
 
   // ═════════ CHART HELPERS ═════════
-  function autoResize(chart, elm) { const ro = new ResizeObserver(() => { try { if (elm.clientWidth) chart.applyOptions({ width: elm.clientWidth }); } catch { ro.disconnect(); } }); ro.observe(elm); return ro; }
+  // Charts take their size from CSS (heights differ on phones vs desktop).
+  function autoResize(chart, elm) { const ro = new ResizeObserver(() => { try { if (elm.clientWidth) chart.applyOptions({ width: elm.clientWidth, height: elm.clientHeight || undefined }); } catch { ro.disconnect(); } }); ro.observe(elm); return ro; }
+  // Keep the tab bar pinned just under the header, whatever height the header wraps to.
+  new ResizeObserver(() => document.documentElement.style.setProperty('--hdr', document.querySelector('header').offsetHeight + 'px')).observe(document.querySelector('header'));
   function syncGroup() { const g = { list: [], busy: false,
       add(c) { g.list.push(c); c.timeScale().subscribeVisibleLogicalRangeChange(r => { if (g.busy || !r || !g.list.includes(c)) return; g.busy = true; g.list.forEach(o => { if (o !== c) try { o.timeScale().setVisibleLogicalRange(r); } catch { } }); g.busy = false; }); },
       remove(c) { g.list = g.list.filter(x => x !== c); } }; return g; }
@@ -191,10 +198,10 @@
     price.candles = price.chart.addCandlestickSeries(candleOpts);
     price.vol = price.chart.addHistogramSeries({ priceScaleId: 'vol', priceFormat: { type: 'volume' }, lastValueVisible: false, priceLineVisible: false });
     price.chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
-    equity.chart = LC.createChart($('equityChart'), chartOpts(260)); autoResize(equity.chart, $('equityChart'));
+    equity.chart = LC.createChart($('equityChart'), { ...chartOpts(260), localization: { priceFormatter: compactINR } }); autoResize(equity.chart, $('equityChart'));
     equity.bh = equity.chart.addLineSeries({ color: '#6b7280', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     equity.s = equity.chart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,0.25)', bottomColor: 'rgba(59,130,246,0)', lineWidth: 2, priceLineVisible: false });
-    equity.dd = LC.createChart($('ddChart'), chartOpts(110)); autoResize(equity.dd, $('ddChart'));
+    equity.dd = LC.createChart($('ddChart'), { ...chartOpts(110), localization: { priceFormatter: v => v.toFixed(0) + '%' } }); autoResize(equity.dd, $('ddChart'));
     equity.dds = equity.dd.addAreaSeries({ lineColor: '#ef4444', topColor: 'rgba(239,68,68,0.05)', bottomColor: 'rgba(239,68,68,0.35)', lineWidth: 1, priceLineVisible: false, invertFilledArea: true });
     const g = syncGroup(); g.add(equity.chart); g.add(equity.dd);
   }
@@ -350,9 +357,9 @@
       ? [['sname', 'Strategy', 'l'], ['cat', 'Category', 'l'], ['cagr', 'Median CAGR %'], ['sharpe', 'Median Sharpe'], ['maxDD', 'Median max DD %'], ['winRate', 'Median win %'], ['profitFactor', 'Median PF'], ['trades', 'Median trades'], ['beat', '% beat buy & hold'], ['longNow', 'Long now'], ['n', 'Stocks']]
       : [...(scView === 'strat' ? [['sym', 'Symbol', 'l'], ['name', 'Company', 'l']] : [['sname', 'Strategy', 'l'], ['cat', 'Category', 'l']]), ['signal', 'Signal'], ['cagr', 'CAGR %'], ['bhCagr', 'B&H CAGR %'], ['alpha', 'Alpha %'], ['maxDD', 'Max DD %'], ['sharpe', 'Sharpe'], ['trades', 'Trades'], ['winRate', 'Win %'], ['profitFactor', 'PF'], ['years', 'Years']];
     const k = scSort.k, d = scSort.d; const rows = scRows.slice().sort((a, b) => (typeof a[k] === 'string' ? a[k].localeCompare(b[k]) : (a[k] - b[k])) * d);
-    $('scTable').innerHTML = '<tr>' + cols.map(([key, label, c]) => `<th data-k="${key}" class="${c || ''}">${label}${key === k ? (d < 0 ? ' ▾' : ' ▴') : ''}</th>`).join('') + '</tr>' +
+    $('scTable').innerHTML = '<tr>' + cols.map(([key, label, c]) => `<th data-k="${key}" class="${c || ''}${key === 'name' ? ' col-name' : ''}">${label}${key === k ? (d < 0 ? ' ▾' : ' ▴') : ''}</th>`).join('') + '</tr>' +
       rows.map(r => `<tr data-sym="${esc(r.sym || '')}" data-sid="${r.sid}">` + cols.map(([key, , c]) => { const v = r[key]; if (key === 'signal') return `<td>${sigBadge(v)}${r.changed ? ' <span class="small" title="Signal changed on the latest bar">new</span>' : ''}</td>`;
-        if (typeof v === 'string') return `<td class="l${key === 'name' || key === 'cat' ? ' muted' : ''}">${esc(v)}</td>`; const dp = ['trades', 'n', 'longNow'].includes(key) ? 0 : 2; return `<td class="${['cagr', 'alpha', 'sharpe', 'bhCagr'].includes(key) ? cls(v) : ''}">${fmt(v, dp)}</td>`; }).join('') + '</tr>').join('');
+        if (typeof v === 'string') return `<td class="l${key === 'name' || key === 'cat' ? ' muted' : ''}${key === 'name' ? ' col-name' : ''}">${esc(v)}</td>`; const dp = ['trades', 'n', 'longNow'].includes(key) ? 0 : 2; return `<td class="${['cagr', 'alpha', 'sharpe', 'bhCagr'].includes(key) ? cls(v) : ''}">${fmt(v, dp)}</td>`; }).join('') + '</tr>').join('');
   }
   $('scTable').onclick = async e => { const th = e.target.closest('th'); if (th) { const k = th.dataset.k; scSort = { k, d: scSort.k === k ? -scSort.d : -1 }; return renderScan(); }
     const tr = e.target.closest('tr[data-sid]'); if (!tr) return; selectStrategy(tr.dataset.sid); gotoTab('backtest'); if (tr.dataset.sym && tr.dataset.sym !== S.sym) await setSymbol(tr.dataset.sym); else runBacktest(); };
@@ -429,7 +436,7 @@
       return `<tr><td class="l"><b>${esc(s)}</b> <span class="muted small">${esc(nameOf(s))}</span></td><td>${p.qty}</td><td>${fmt(p.avg)}</td><td>${fmt(l)}</td><td class="${cls(dc)}">${pct(dc)}</td><td>${fmt(l * p.qty, 0)}</td><td class="${cls(pl)}">${fmt(pl, 0)}</td><td class="${cls(pl)}">${pct((l / p.avg - 1) * 100)}</td><td><button data-exit="${esc(s)}">Exit</button></td></tr>`; }).join('')
       : '<tr><td class="muted" style="text-align:center;padding:24px">No holdings yet. Search a stock at the top and place a buy order.</td></tr>';
     $('ptOrders').innerHTML = '<tr><th>#</th><th class="l">Placed</th><th class="l">Symbol</th><th class="l">Side</th><th class="l">Type</th><th>Qty</th><th>Price</th><th class="l">Status</th><th>Fill ₹</th><th class="l">Filled</th><th>Realised ₹</th><th class="l">Note</th><th></th></tr>' + acct.orders.slice(0, 500).map(o => `<tr><td>${o.id}</td><td class="l">${o.placed}</td><td class="l">${esc(o.sym)}</td><td class="l ${o.side === 'BUY' ? 'pos' : 'neg'}">${o.side}</td><td class="l">${o.type}</td><td>${o.qty}</td><td>${o.price ? fmt(o.price) : '—'}</td><td class="l">${o.status}</td><td>${o.fillPx ? fmt(o.fillPx) : '—'}</td><td class="l">${o.fillDate || ''}</td><td class="${cls(o.realized)}">${o.realized ? fmt(o.realized, 0) : ''}</td><td class="l small muted">${esc(o.note || '')}</td><td>${o.status === 'OPEN' ? `<button data-cancel="${o.id}">Cancel</button>` : ''}</td></tr>`).join('');
-    if (!ptChart) { ptChart = LC.createChart($('ptEquity'), chartOpts(260)); autoResize(ptChart, $('ptEquity')); ptSeries = ptChart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,0.25)', bottomColor: 'rgba(59,130,246,0)', priceLineVisible: false }); }
+    if (!ptChart) { ptChart = LC.createChart($('ptEquity'), { ...chartOpts(260), localization: { priceFormatter: compactINR } }); autoResize(ptChart, $('ptEquity')); ptSeries = ptChart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,0.25)', bottomColor: 'rgba(59,130,246,0)', priceLineVisible: false }); }
     ptSeries.setData(acct.hist); ptChart.timeScale().fitContent(); updateLtp();
     let note = $('ptEqNote'); if (!note) { note = el('div', { id: 'ptEqNote', className: 'muted small' }); $('ptEquity').before(note); }
     note.textContent = acct.hist.length < 2 ? 'The equity curve builds up day by day as you update data and revisit this tab.' : '';
