@@ -335,6 +335,7 @@
     $('tradesSummary').textContent = `Trades (${r.trades.length})`;
     renderTrades(r.trades);
     syncHash();
+    window.dispatchEvent(new CustomEvent('pp:backtest'));   // lets js/reality.js refresh its card
   }
   function metricCards(box, items) { box.innerHTML = items.map(([k, v, c, sub]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c !== undefined ? cls(c) : ''}">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`).join(''); }
   function renderTrades(tr) {
@@ -798,6 +799,10 @@
     $('ackModal').hidden = false; $('ackOk').focus();
     $('ackOk').onclick = () => { store.set('npt_ack_v1', true); $('ackModal').hidden = true; };
   }
+
+  // Shared helpers for the add-on screens (js/reality.js, js/challenge.js, js/options.js).
+  window.PP = { $, el, esc, fmt, inr, pct, cls, toast, store, debounce, sleep, DB, ensure, loadEverything, stockSyms, allSyms, nameOf, logoHTML,
+    S, settings, getResult: () => lastResult, onTab, gotoTab, activeTab, chartOpts, autoResize, compactINR, metricCards, candleOpts, byId, STRATS };
 
   // ═════════ BOOT ═════════
   (async function boot() {

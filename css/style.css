@@ -356,3 +356,44 @@ body.noscroll { overflow: hidden; }
   #btShare { order: 2; }
   .quote .star { font-size: 20px; }
 }
+
+/* ── reality check (Backtest) ── */
+.rc .toolbar { margin-bottom: 4px; }
+.rc-verdict { margin-left: auto; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--panel2); color: var(--muted); }
+.rc-verdict.ok { background: #14532d; color: #86efac; } .rc-verdict.mid { background: #422006; color: #fcd34d; } .rc-verdict.no { background: #7f1d1d; color: #fca5a5; }
+.rc-table { width: 100%; }
+.rc-table td.l { white-space: normal; }
+.rc-table tr.rc-you td { background: var(--panel2); font-weight: 600; }
+.rc-i { display: inline-block; width: 18px; text-align: center; font-weight: 700; }
+.rc-i.ok { color: var(--green); } .rc-i.no { color: var(--red); } .rc-i.na { color: var(--muted); }
+.rc-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0 4px; }
+.rc-split > div { background: var(--panel2); border-radius: 10px; padding: 9px 12px; }
+.rc-split b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.rc-warn { background: #2b2008; border: 1px solid #6b4f12; color: #fde68a; padding: 8px 12px; border-radius: 10px; }
+.rc-surv { margin-bottom: 0; }
+
+/* ── crash challenge ── */
+.ch-big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.ch-mood { display: flex; align-items: center; gap: 10px; background: var(--panel2); border-radius: 12px; padding: 8px 14px; min-width: 190px; }
+.ch-em { font-size: 28px; line-height: 1; }
+.ch-news { background: #172036; border: 1px solid #2d3d63; border-radius: 10px; padding: 9px 12px; margin: 8px 0; font-size: 13px; }
+.ch-bar { height: 4px; background: var(--panel2); border-radius: 4px; margin: 8px 0 2px; overflow: hidden; }
+.ch-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+.ch-actions { margin-top: 8px; }
+.ch-actions button { min-height: 40px; }
+.ch-badge { font-size: 26px; font-weight: 700; margin: 4px 0 6px; }
+
+/* ── options lab ── */
+.opx-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.opx-svg { width: 100%; height: auto; display: block; margin-top: 8px; background: var(--panel2); border-radius: 10px; }
+.opx-axis { display: flex; justify-content: space-between; margin-top: 4px; }
+.opx-leglist { margin: 6px 0; padding-left: 18px; }
+.opx-notes { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
+@media (max-width: 760px) {
+  .opx-grid { grid-template-columns: 1fr 1fr; }
+  .rc-split { grid-template-columns: 1fr; }
+  .ch-big { font-size: 26px; }
+  .ch-mood { min-width: 0; flex: 1 1 100%; }
+  .ch-actions button { flex: 1 1 auto; }
+  .rc-verdict { margin-left: 0; }
+}
