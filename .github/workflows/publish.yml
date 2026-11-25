@@ -19,12 +19,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,5 +41,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+
+  # Deploy runs as a separate job (GitHub's recommended layout) so the uploaded
+  # site artifact is fully registered before deploy-pages looks it up.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
