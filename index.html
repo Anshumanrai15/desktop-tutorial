@@ -19,8 +19,10 @@
   window.NPT_DATA = { store: {}, register(p) { this.store[p.symbol] = { symbol: p.symbol, kind: p.kind, source: p.source, d: p.d, o: p.o, h: p.h, l: p.l, c: p.c, v: p.v }; } };
   window.NPT_MANIFEST = [];
 </script>
+<script src="js/config.js"></script>
 <script src="data/manifest.js"></script>
 <script src="lib/lightweight-charts.standalone.production.js"></script>
+<script src="lib/qrcode-generator.js"></script>
 <script src="js/names.js"></script>
 <script src="js/indicators.js"></script>
 <script src="js/strategies.js"></script>
@@ -45,6 +47,7 @@
   <button data-tab="paper">Paper Trading</button>
   <button data-tab="replay">Bar Replay</button>
   <button data-tab="data">Data</button>
+  <button data-tab="support" id="supportTabBtn" class="support-tab" hidden>Support ❤</button>
   <span class="spacer"></span><span id="dataStatus" class="muted small"></span>
 </nav>
 
@@ -173,6 +176,7 @@
       </div>
       <button id="ptPlace" class="primary">Place order</button>
       <p class="muted small">Market orders fill at the latest close. Limit and stop orders fill automatically against new days when you update data.</p>
+      <p id="ptReal" class="small" hidden>Ready to trade with real money? <a href="#" data-goto="support">Open a demat account →</a></p>
     </div>
     <div class="card" style="flex:1;min-width:300px">
       <div class="title">Strategy autopilot</div>
@@ -231,7 +235,56 @@
   </div>
   <div class="card"><div class="tablewrap tall"><table id="dataTable"></table></div></div>
 </section>
+
+<!-- ═════════════ SUPPORT ═════════════ -->
+<section id="tab-support" class="tab">
+  <div class="row">
+    <div class="card" id="donateCard" style="flex:1;min-width:300px" hidden>
+      <div class="title">Support this free tool ❤</div>
+      <p class="muted small">Nifty Paper Trader is free, with no ads and no sign-up. If it helps you learn, a small UPI contribution keeps the data updating and new features coming.</p>
+      <div class="seg full" id="upiAmts"><button data-a="">Any</button><button data-a="51">₹51</button><button data-a="101" class="on">₹101</button><button data-a="251">₹251</button><button data-a="501">₹501</button></div>
+      <div class="qrwrap"><div id="upiQr" class="qrbox"></div>
+        <div class="qrside">
+          <div class="muted small">Scan with any UPI app<br>(GPay, PhonePe, Paytm, BHIM)</div>
+          <div class="upi-id"><code id="upiId"></code><button id="upiCopy" class="ghost">Copy</button></div>
+          <a id="upiApp" class="btnlink primary upi-app-btn" href="#">Pay with a UPI app</a>
+        </div>
+      </div>
+      <p class="muted small">Donations are voluntary and non-refundable, and they don't buy any service or advice. See the <a href="legal/terms.html">Terms</a>.</p>
+    </div>
+    <div class="card" id="brokerCard" style="flex:1;min-width:300px" hidden>
+      <div class="title">Ready to trade for real?</div>
+      <p class="muted small">Paper trading is the safest place to learn. When you're ready to invest real money, you'll need a demat and trading account with a SEBI-registered broker.</p>
+      <div id="brokerList" class="brokers"></div>
+      <p class="muted small"><b>Disclosure:</b> these are referral links. If you open an account through them, we may receive a referral fee from the broker at no extra cost to you. This is not a recommendation; compare charges and services yourself.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="title">About &amp; legal</div>
+    <p class="small">Nifty Paper Trader is an educational tool. It is not investment advice, and we are not registered with SEBI as an Investment Adviser or Research Analyst.</p>
+    <p class="small"><a href="legal/disclaimer.html">Disclaimer</a> · <a href="legal/terms.html">Terms of Use</a> · <a href="legal/privacy.html">Privacy Policy</a></p>
+    <p class="muted small">Charts by <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a>.</p>
+  </div>
+</section>
 </main>
+
+<footer class="site-footer">
+  <span>Educational tool · Not investment advice · Not SEBI-registered</span>
+  <span><a href="legal/disclaimer.html">Disclaimer</a> · <a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a><span id="footSupport" hidden> · <a href="#" data-goto="support">Support ❤</a></span></span>
+</footer>
+
+<div id="ackModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ackTitle">
+  <div class="modal-card">
+    <div class="title" id="ackTitle">Before you start</div>
+    <p>Nifty Paper Trader is a <b>learning tool</b>. Backtests and paper trades use past data and simulated money.</p>
+    <ul class="small">
+      <li>Nothing here is investment advice or a recommendation to buy or sell.</li>
+      <li>We are not registered with SEBI as an adviser or research analyst.</li>
+      <li>Past performance does not guarantee future results.</li>
+    </ul>
+    <div class="toolbar"><a href="legal/disclaimer.html" class="small">Read the full disclaimer</a><span class="spacer"></span><button id="ackOk" class="primary">I understand</button></div>
+  </div>
+</div>
 <div id="toast"></div>
 <script src="js/app.js"></script>
 </body>

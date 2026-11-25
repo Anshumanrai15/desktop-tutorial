@@ -527,6 +527,44 @@
   $('clearImported').onclick = async () => { if (!confirm('Delete all CSV-imported series from this browser?')) return; await idbClear(); location.reload(); };
   onTab.data = renderData;
 
+  // ═════════ SUPPORT: UPI donations, broker referrals, first-visit notice ═════════
+  // Everything here is driven by js/config.js; features with no settings stay hidden.
+  const CFG = window.NPT_CONFIG || {};
+  function initSupport() {
+    const upi = CFG.upi || {}, upiId = String(upi.id || '').trim();
+    const hasUpi = /^[A-Za-z0-9._-]{2,256}@[A-Za-z][A-Za-z0-9]{1,63}$/.test(upiId);
+    const brokers = (CFG.brokers || []).filter(b => b && b.name && /^https:\/\//i.test(String(b.url || '').trim()));
+    if (!hasUpi && !brokers.length) return;
+    $('supportTabBtn').hidden = false; $('footSupport').hidden = false; $('ptReal').hidden = !brokers.length;
+    if (hasUpi) {
+      $('donateCard').hidden = false; $('upiId').textContent = upiId;
+      const payee = String(upi.name || CFG.siteName || 'Nifty Paper Trader').trim();
+      let amount = '101';
+      const draw = () => {
+        // Keep '@' in the UPI ID literal: some UPI apps reject a percent-encoded payee address.
+        const enc = encodeURIComponent;
+        const link = `upi://pay?pa=${upiId}&pn=${enc(payee)}${amount ? '&am=' + amount : ''}&cu=INR&tn=${enc('Support ' + (CFG.siteName || 'Nifty Paper Trader'))}`;
+        const qr = window.qrcode(0, 'M'); qr.addData(link); qr.make();
+        $('upiQr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true, alt: 'UPI QR code' });
+        $('upiApp').href = link;
+        document.querySelectorAll('#upiAmts button').forEach(b => b.classList.toggle('on', b.dataset.a === amount));
+      };
+      $('upiAmts').onclick = e => { const b = e.target.closest('button'); if (!b) return; amount = b.dataset.a; draw(); };
+      $('upiCopy').onclick = async () => { try { await navigator.clipboard.writeText(upiId); toast('UPI ID copied'); } catch { prompt('Copy this UPI ID:', upiId); } };
+      draw();
+    }
+    if (brokers.length) {
+      $('brokerCard').hidden = false;
+      $('brokerList').innerHTML = brokers.map(b => `<a class="broker" href="${esc(String(b.url).trim())}" target="_blank" rel="noopener sponsored"><b>${esc(b.name)}</b><span>Open account →</span></a>`).join('');
+    }
+  }
+  document.addEventListener('click', e => { const a = e.target.closest('[data-goto]'); if (!a) return; e.preventDefault(); const b = document.querySelector(`#tabs button[data-tab="${a.dataset.goto}"]`); if (b && !b.hidden) { b.click(); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
+  function initNotice() {
+    if (CFG.showDisclaimerOnFirstVisit === false || store.get('npt_ack_v1', false)) return;
+    $('ackModal').hidden = false; $('ackOk').focus();
+    $('ackOk').onclick = () => { store.set('npt_ack_v1', true); $('ackModal').hidden = true; };
+  }
+
   // ═════════ BOOT ═════════
   (async function boot() {
     const here = decodeURIComponent(location.pathname).replace(/^\/([A-Za-z]:)/, '$1').replace(/\/[^\/]*$/, '').replace(/\//g, '\\');
@@ -535,7 +573,7 @@
     else if (!MAN.some(m => m.kind !== 'index')) document.querySelector('main').prepend(el('div', { className: 'banner' }, 'Only sample index data is loaded. Run <code>python download_data.py</code> in this folder to download full history for all Nifty 100 stocks, then reload.'));
     [...new Set(STRATS.map(s => s.cat))].forEach(c => $('libCat').appendChild(el('option', { value: c, textContent: c })));
     $('indList').innerHTML = INDICATORS.map((d, i) => `<div>${i + 1}. ${d.name}${d.overlay ? '' : ' <span class="muted small">(pane)</span>'}</div>`).join('');
-    initCharts(); initIndicatorPicker(); showStrat(); renderOpParams();
+    initCharts(); initIndicatorPicker(); showStrat(); renderOpParams(); initSupport(); initNotice();
     $('dataStatus').textContent = 'Loading…';
     const saved = store.get('npt_sym', null); let syms = allSyms();
     if (!syms.length) { await loadImported(); syms = allSyms(); }
