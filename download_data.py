@@ -29,7 +29,8 @@ import json
 import os
 import sys
 import time
-from datetime import date
+import zipfile
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
@@ -189,6 +190,94 @@ def restore_from(site):
     print(f"Restored {n} published data files from {site}")
 
 
+# ── NSE end-of-day "bhavcopy": the official daily closing prices, used to fill recent days ──
+NSE_INDEX_NAMES = {"NIFTY50": "Nifty 50", "NIFTY100": "Nifty 100", "BANKNIFTY": "Nifty Bank", "INDIAVIX": "India VIX"}
+
+
+def nse_get(url):
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*",
+                                               "Referer": "https://www.nseindia.com/"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read()
+
+
+def num(x):
+    try:
+        v = float(str(x).replace(",", "").strip())
+        return v if v == v else 0.0
+    except ValueError:
+        return 0.0
+
+
+def nse_day(day):
+    """{symbol: (open, high, low, close, volume)} for one trading day from NSE's published files,
+    or None if NSE has no file for that day (holiday, weekend, not published yet)."""
+    out = {}
+    try:
+        raw = nse_get(f"https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{day:%Y%m%d}_F_0000.csv.zip")
+        z = zipfile.ZipFile(io.BytesIO(raw))
+        df = pd.read_csv(z.open(z.namelist()[0]))
+        df = df[df["SctySrs"].astype(str).str.strip() == "EQ"]
+        for r in df.itertuples(index=False):
+            out[str(r.TckrSymb).strip()] = (num(r.OpnPric), num(r.HghPric), num(r.LwPric), num(r.ClsPric), int(num(r.TtlTradgVol)))
+    except Exception:
+        return None
+    try:
+        ind = pd.read_csv(io.BytesIO(nse_get(f"https://nsearchives.nseindia.com/content/indices/ind_close_all_{day:%d%m%Y}.csv")))
+        names = {str(n).strip().lower(): i for i, n in enumerate(ind["Index Name"])}
+        for sym, name in NSE_INDEX_NAMES.items():
+            i = names.get(name.lower())
+            if i is not None:
+                r = ind.iloc[i]
+                out[sym] = (num(r["Open Index Value"]), num(r["High Index Value"]), num(r["Low Index Value"]),
+                            num(r["Closing Index Value"]), int(num(r.get("Volume", 0))))
+    except Exception as e:
+        print(f"   NSE index file for {day} not available: {e}")
+    return out
+
+
+def fill_from_nse(written):
+    """Yahoo is often late with Indian end-of-day prices. For every trading day after a symbol's
+    last bar (up to today, India time), add that day's official close from NSE's bhavcopy."""
+    if not written:
+        return
+    today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    oldest = min(df["Date"].iloc[-1] for df, _, _ in written.values())
+    start = max(datetime.strptime(oldest, "%Y-%m-%d").date() + timedelta(days=1), today - timedelta(days=10))
+    days = [start + timedelta(days=k) for k in range((today - start).days + 1)]
+    days = [d for d in days if d.weekday() < 5]
+    changed = set()
+    for d in days:
+        rows = nse_day(d)
+        if not rows:
+            print(f"NSE bhavcopy {d}: not available (holiday or not published yet)")
+            continue
+        ds, n = d.isoformat(), 0
+        for sym, item in written.items():
+            df = item[0]
+            if sym in rows and df["Date"].iloc[-1] < ds:
+                o, h, l, c, v = rows[sym]
+                if c > 0:
+                    item[0] = pd.concat([df, pd.DataFrame([{"Date": ds, "Open": o or c, "High": max(h, o, c), "Low": min(x for x in (l, o, c) if x > 0),
+                                                            "Close": c, "Volume": v}])], ignore_index=True)
+                    changed.add(sym); n += 1
+        print(f"NSE bhavcopy {d}: added this day for {n} symbols")
+    for sym in changed:
+        df, src, kind = written[sym]
+        write_js(sym, df, src if "bhavcopy" in src else src + " + NSE bhavcopy", kind)
+    if changed:
+        print(f"Filled recent days from NSE for {len(changed)} symbols")
+
+
+def read_meta(path):
+    try:
+        head = open(path).read(400)
+        return head.split('"source":"')[1].split('"')[0], head.split('"kind":"')[1].split('"')[0]
+    except Exception:
+        return "unknown", "stock"
+
+
 def write_js(sym, df, source, kind):
     r = lambda s: [round(float(x), 2) for x in s]
     payload = {
@@ -261,6 +350,7 @@ def main():
     stocks = [a.upper() for a in args] if args else get_symbol_list()
     jobs = [(s, "index" if s in INDICES else "stock") for s in stocks] + ([] if args else [(k, "index") for k in INDICES])
     ok, failed = 0, []
+    written = {}
     for i, (sym, kind) in enumerate(jobs, 1):
         fn = sym.replace("&", "_").replace("-", "_")
         jsf = os.path.join(DATA, fn + ".js")
@@ -282,10 +372,23 @@ def main():
         df = clean(df)
         df, carried = keep_newer_days(fn, df)
         write_js(sym, df, src, kind)
+        written[sym] = [df, src, kind]
         ok += 1
         note = f" (+{carried} newer day(s) kept from the previous update)" if carried else ""
         print(f"[{i}/{len(jobs)}] {sym}: {len(df)} bars {df['Date'].iloc[0]} -> {df['Date'].iloc[-1]} ({src}){note}")
         time.sleep(0.3)
+    # Symbols not re-downloaded this run (skipped as fresh, or failed but restored) can be filled too.
+    for sym, kind in jobs:
+        fn = sym.replace("&", "_").replace("-", "_")
+        if sym not in written:
+            old = read_js(os.path.join(DATA, fn + ".js"))
+            if old is not None and not old.empty:
+                src, k = read_meta(os.path.join(DATA, fn + ".js"))
+                written[sym] = [old, src, k]
+    try:
+        fill_from_nse(written)
+    except Exception as e:
+        print("Could not fill recent days from NSE:", e)
     write_manifest()
     print(f"Done. {ok} ok, {len(failed)} failed: {failed}")
 
