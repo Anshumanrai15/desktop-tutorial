@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nifty Paper Trader</title>
+<link rel="stylesheet" href="css/style.css">
+<script>
+  // Data registry must exist before data/*.js files load.
+  window.NPT_DATA = { store: {}, register(p) { this.store[p.symbol] = { symbol: p.symbol, kind: p.kind, source: p.source, d: p.d, o: p.o, h: p.h, l: p.l, c: p.c, v: p.v }; } };
+  window.NPT_MANIFEST = [];
+</script>
+<script src="data/manifest.js"></script>
+<script src="lib/lightweight-charts.standalone.production.js"></script>
+<script src="js/names.js"></script>
+<script src="js/indicators.js"></script>
+<script src="js/strategies.js"></script>
+<script src="js/backtest.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand">📈 <span>Nifty Paper Trader</span></div>
+  <div class="search">
+    <span class="search-ico">🔍</span>
+    <input id="stockSearch" placeholder="Search stocks: name or symbol (e.g. reliance, hdfc, zomato)" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+    <div id="stockDD" class="dropdown" hidden></div>
+  </div>
+  <div id="quote" class="quote"></div>
+</header>
+<nav id="tabs">
+  <button data-tab="backtest" class="active">Backtest</button>
+  <button data-tab="library">Strategies</button>
+  <button data-tab="scanner">Scanner</button>
+  <button data-tab="optimizer">Optimizer</button>
+  <button data-tab="paper">Paper Trading</button>
+  <button data-tab="replay">Bar Replay</button>
+  <button data-tab="data">Data</button>
+  <span class="spacer"></span><span id="dataStatus" class="muted small"></span>
+</nav>
+
+<main>
+<!-- ═════════════ BACKTEST ═════════════ -->
+<section id="tab-backtest" class="tab active">
+  <aside class="side">
+    <div class="card">
+      <div class="label">Strategy</div>
+      <div class="search small-search">
+        <input id="stratSearch" autocomplete="off" spellcheck="false">
+        <div id="stratDD" class="dropdown" hidden></div>
+      </div>
+      <div id="btStratInfo" class="info"></div>
+      <div id="btParams" class="params"></div>
+    </div>
+    <div class="card">
+      <details id="advanced"><summary>Settings <span class="muted small">(capital, costs, stops, dates)</span></summary>
+        <div class="grid2">
+          <label>Capital ₹<input id="setCapital" type="number" value="1000000"></label>
+          <label>Allocation %<input id="setAlloc" type="number" value="100"></label>
+          <label>Costs % / side<input id="setCost" type="number" step="0.01" value="0.12" title="STT 0.1% + exchange/GST/stamp ≈ 0.12% for delivery"></label>
+          <label>Slippage %<input id="setSlip" type="number" step="0.01" value="0.05"></label>
+          <label>Stop-loss %<input id="setStop" type="number" step="0.5" value="0"></label>
+          <label>Target %<input id="setTarget" type="number" step="0.5" value="0"></label>
+          <label>ATR trail ×<input id="setTrail" type="number" step="0.5" value="0"></label>
+          <label>Max hold bars<input id="setMaxHold" type="number" value="0"></label>
+          <label>From<input id="setStart" type="date"></label>
+          <label>To<input id="setEnd" type="date"></label>
+        </div>
+        <label class="chk"><input id="setLongOnly" type="checkbox" checked> Long only</label>
+        <p class="muted small">0 = off. Trades are signalled at the close and filled at the next day's open.</p>
+      </details>
+    </div>
+    <p class="muted small center">Results update automatically as you change anything.</p>
+  </aside>
+
+  <div class="content">
+    <div class="card">
+      <div class="toolbar">
+        <div id="btTitle" class="title">—</div>
+        <span class="spacer"></span>
+        <div id="ranges" class="seg"><button>1M</button><button>6M</button><button class="on">1Y</button><button>3Y</button><button>5Y</button><button>All</button></div>
+      </div>
+      <div class="toolbar">
+        <select id="indPicker"><option value="">+ Indicator</option></select>
+        <span id="indChips"></span>
+      </div>
+      <div id="priceChart" class="chart"></div>
+      <div id="paneCharts"></div>
+    </div>
+
+    <div id="headline" class="headline"></div>
+
+    <div class="card">
+      <div class="toolbar"><div class="title">Equity curve</div><span class="legend"><i style="background:#3b82f6"></i>Strategy <i style="background:#6b7280"></i>Buy &amp; hold</span></div>
+      <div id="equityChart" class="chart small"></div><div id="ddChart" class="chart tiny"></div>
+    </div>
+
+    <details class="card"><summary>All statistics</summary><div id="metrics" class="metrics"></div></details>
+    <details class="card"><summary id="tradesSummary">Trades</summary>
+      <div class="toolbar"><span class="spacer"></span><button id="btExport">Export CSV</button></div>
+      <div class="tablewrap"><table id="tradesTable"></table></div></details>
+  </div>
+</section>
+
+<!-- ═════════════ LIBRARY ═════════════ -->
+<section id="tab-library" class="tab">
+  <div class="card toolbar">
+    <input id="libSearch" placeholder="Search strategies by name, trader or idea…" style="flex:1">
+    <select id="libCat"><option value="">All categories</option></select><span id="libCount" class="muted small"></span>
+  </div>
+  <div id="libGrid" class="cards"></div>
+  <details class="card"><summary>Indicator catalogue</summary><div id="indList" class="indlist"></div></details>
+</section>
+
+<!-- ═════════════ SCANNER ═════════════ -->
+<section id="tab-scanner" class="tab">
+  <div class="card">
+    <div class="seg big" id="scModes">
+      <button data-m="strat" class="on">One strategy · all stocks</button>
+      <button data-m="stock">All strategies · <span class="curSym"></span></button>
+      <button data-m="all">Leaderboard · everything</button>
+    </div>
+    <div class="toolbar wrap" style="margin-top:12px">
+      <div id="scStratWrap" class="search small-search" style="width:340px"><input id="scStratSearch" autocomplete="off"><div id="scStratDD" class="dropdown" hidden></div></div>
+      <label class="chk"><input id="scStocksOnly" type="checkbox" checked> stocks only</label>
+      <button id="scRun" class="primary">Run scan</button>
+      <div class="progress"><div id="scProg"></div></div><span id="scStatus" class="muted small"></span>
+    </div>
+    <p class="muted small">Uses your Backtest settings. "Signal" is the position the strategy wants for the next session. Click any row to open it.</p>
+  </div>
+  <div class="card"><div class="tablewrap tall"><table id="scTable" class="sortable"></table></div></div>
+</section>
+
+<!-- ═════════════ OPTIMIZER ═════════════ -->
+<section id="tab-optimizer" class="tab">
+  <div class="card">
+    <div class="toolbar wrap">
+      <span>Optimising on <b class="curSym"></b></span>
+      <div class="search small-search" style="width:340px"><input id="opStratSearch" autocomplete="off"><div id="opStratDD" class="dropdown" hidden></div></div>
+      <label>Metric <select id="opMetric">
+        <option value="cagr">CAGR %</option><option value="sharpe">Sharpe</option><option value="totalReturn">Total return %</option>
+        <option value="calmar">Calmar</option><option value="profitFactor">Profit factor</option><option value="maxDD">Max drawdown (smaller = better)</option><option value="winRate">Win rate %</option></select></label>
+    </div>
+    <div id="opParams" class="toolbar wrap"></div>
+    <div class="toolbar"><button id="opRun" class="primary">Optimise</button><span id="opStatus" class="muted small"></span></div>
+    <p class="muted small">Tip: the best cell is fitted to the past. Optimise on an early period (set From/To in Settings), then check the chosen values on later data.</p>
+  </div>
+  <div class="card"><div id="opGrid" class="tablewrap"></div></div>
+</section>
+
+<!-- ═════════════ PAPER TRADING ═════════════ -->
+<section id="tab-paper" class="tab">
+  <div id="ptAccount" class="headline"></div>
+  <div class="row">
+    <div class="card" style="flex:1;min-width:300px">
+      <div class="title">Place order · <span class="curSym"></span></div>
+      <div id="ptLtp" class="ltp"></div>
+      <div class="seg full" id="ptSideSeg"><button class="on buyon" data-v="BUY">Buy</button><button data-v="SELL">Sell</button></div>
+      <div class="grid2">
+        <label>Order type <select id="ptType"><option>MARKET</option><option>LIMIT</option><option value="SL">STOP (SL-M)</option></select></label>
+        <label>Quantity <input id="ptQty" type="number" value="10" min="1"></label>
+        <label id="ptPriceWrap" style="display:none">Limit / stop price<input id="ptPrice" type="number" step="0.05"></label>
+        <label>Est. value <input id="ptValue" disabled></label>
+      </div>
+      <button id="ptPlace" class="primary">Place order</button>
+      <p class="muted small">Market orders fill at the latest close. Limit and stop orders fill automatically against new days when you update data.</p>
+    </div>
+    <div class="card" style="flex:1;min-width:300px">
+      <div class="title">Strategy autopilot</div>
+      <div class="search small-search"><input id="apStratSearch" autocomplete="off"><div id="apStratDD" class="dropdown" hidden></div></div>
+      <div class="grid2"><label>₹ per position <input id="apAlloc" type="number" value="100000"></label>
+      <label>Universe <select id="apUniverse"><option value="all">All stocks</option><option value="sel">Current stock only</option></select></label></div>
+      <button id="apRun" class="primary">Run on latest bar</button>
+      <p class="muted small">Buys when the strategy turns long and sells when it goes flat. Run once a day after updating data.</p>
+      <div id="apLog" class="small muted"></div>
+    </div>
+  </div>
+  <div class="card"><div class="toolbar"><div class="title">Holdings</div><span class="spacer"></span><button id="ptReset" class="ghost danger">Reset account</button></div><div class="tablewrap"><table id="ptHoldings"></table></div></div>
+  <div class="card"><div class="title">Account equity</div><div id="ptEquity" class="chart small"></div></div>
+  <details class="card"><summary>Order history</summary><div class="tablewrap"><table id="ptOrders"></table></div></details>
+</section>
+
+<!-- ═════════════ REPLAY ═════════════ -->
+<section id="tab-replay" class="tab">
+  <div class="card">
+    <div class="toolbar wrap">
+      <span>Replaying <b class="curSym"></b> from</span><input id="rpStart" type="date">
+      <button id="rpLoad">Restart</button>
+      <span class="spacer"></span>
+      <button id="rpBack" title="Back (←)">◀</button><button id="rpPlay" class="primary">▶ Play</button><button id="rpStep" title="Next (→)">▶|</button>
+      <select id="rpSpeed"><option value="800">Slow</option><option value="300" selected>Normal</option><option value="80">Fast</option></select>
+      <strong id="rpDate" class="title"></strong>
+    </div>
+    <div class="toolbar wrap">
+      <label class="chk"><input type="checkbox" class="rpInd" value="ema20" checked>EMA 20</label>
+      <label class="chk"><input type="checkbox" class="rpInd" value="ema50" checked>EMA 50</label>
+      <label class="chk"><input type="checkbox" class="rpInd" value="sma200">SMA 200</label>
+      <label class="chk"><input type="checkbox" class="rpInd" value="bb">Bollinger</label>
+      <label class="chk"><input type="checkbox" class="rpInd" value="st">Supertrend</label>
+      <span class="spacer"></span>
+      <div class="search small-search" style="width:260px"><input id="rpHintSearch" autocomplete="off" placeholder="Strategy hint (optional)"><div id="rpHintDD" class="dropdown" hidden></div></div><span id="rpHintOut" class="badge"></span>
+    </div>
+    <div id="rpChart" class="chart"></div>
+    <div id="rpRsi" class="chart tiny"></div>
+    <div class="toolbar wrap" style="margin-top:8px">
+      <label>Qty <input id="rpQty" type="number" value="100" style="width:90px"></label>
+      <button id="rpBuy" class="buy">Buy (B)</button><button id="rpSell" class="sell">Sell (S)</button><button id="rpFlat">Close</button>
+      <span class="spacer"></span><span id="rpAcct"></span>
+    </div>
+    <p class="muted small">Only bars up to the replay date are shown. Orders fill at the next bar's open. Keys: ← → step, B buy, S sell.</p>
+  </div>
+  <details class="card"><summary>Replay trades</summary><div class="tablewrap"><table id="rpTrades"></table></div></details>
+</section>
+
+<!-- ═════════════ DATA ═════════════ -->
+<section id="tab-data" class="tab">
+  <div class="card">
+    <div class="title">Update data</div>
+    <p>Run <code>python download_data.py --update</code> in this folder each evening, then reload this page. Run it without <code>--update</code> to fetch only symbols that are missing.</p>
+    <p class="muted small">You can also import CSVs with Date, Open, High, Low, Close and Volume columns. NSE, broker and Kaggle formats work, and the file name becomes the symbol.</p>
+    <div class="toolbar"><input type="file" id="csvFiles" multiple accept=".csv,.txt"><button id="clearImported" class="ghost danger">Delete imported data</button></div>
+  </div>
+  <div class="card"><div class="tablewrap tall"><table id="dataTable"></table></div></div>
+</section>
+</main>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+</body>
+</html>
