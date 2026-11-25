@@ -1,4 +1,4 @@
-# Nifty Paper Trader
+# PaperPaisaa
 
 A backtesting and paper-trading app for the Nifty 100 that runs offline in your browser.
 It has **164 named strategies**, **64 indicators**, a scanner and leaderboard, a parameter optimizer, a paper-trading account, and a bar-replay trainer.

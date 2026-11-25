@@ -6,7 +6,7 @@
 //  Anything left empty ('') stays hidden on the site.
 // ════════════════════════════════════════════════════════════════════
 window.NPT_CONFIG = {
-  siteName: 'Nifty Paper Trader',
+  siteName: 'PaperPaisaa',
 
   // Shown on the Terms and Privacy pages so users can reach you.
   // Example: 'support@niftypapertrader.in'

@@ -660,12 +660,12 @@
     $('supportTabBtn').hidden = false; $('footSupport').hidden = false; $('ptReal').hidden = !brokers.length;
     if (hasUpi) {
       $('donateCard').hidden = false; $('upiId').textContent = upiId;
-      const payee = String(upi.name || CFG.siteName || 'Nifty Paper Trader').trim();
+      const payee = String(upi.name || CFG.siteName || 'PaperPaisaa').trim();
       let amount = '101';
       const draw = () => {
         // Keep '@' in the UPI ID literal: some UPI apps reject a percent-encoded payee address.
         const enc = encodeURIComponent;
-        const link = `upi://pay?pa=${upiId}&pn=${enc(payee)}${amount ? '&am=' + amount : ''}&cu=INR&tn=${enc('Support ' + (CFG.siteName || 'Nifty Paper Trader'))}`;
+        const link = `upi://pay?pa=${upiId}&pn=${enc(payee)}${amount ? '&am=' + amount : ''}&cu=INR&tn=${enc('Support ' + (CFG.siteName || 'PaperPaisaa'))}`;
         const qr = window.qrcode(0, 'M'); qr.addData(link); qr.make();
         $('upiQr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true, alt: 'UPI QR code' });
         $('upiApp').href = link;
