@@ -15,6 +15,16 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PaperPaisaa">
+<!-- Link previews (WhatsApp, Telegram, X, LinkedIn). Update the URLs if the site moves to its own domain. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PaperPaisaa">
+<meta property="og:title" content="PaperPaisaa: backtest strategies & paper-trade Nifty 100 stocks">
+<meta property="og:description" content="Free and educational. Test 164 famous trading strategies on up to 30 years of NSE data, chart any Nifty 100 stock and practise with ₹10 lakh of paper money.">
+<meta property="og:url" content="https://anshumanrai15.github.io/paperpaisaa/">
+<meta property="og:image" content="https://anshumanrai15.github.io/paperpaisaa/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="css/style.css">
 <script>
   // Data registry must exist before data/*.js files load.
@@ -23,6 +33,7 @@
 </script>
 <script src="js/config.js"></script>
 <script src="data/manifest.js"></script>
+<script src="data/summary.js"></script>
 <script src="logos/index.js"></script>
 <script src="lib/lightweight-charts.standalone.production.js"></script>
 <script src="lib/qrcode-generator.js"></script>
@@ -44,6 +55,7 @@
 </header>
 <nav id="tabs">
   <button data-tab="chart">Chart</button>
+  <button data-tab="watch">Watchlist</button>
   <button data-tab="backtest" class="active">Backtest</button>
   <button data-tab="library">Strategies</button>
   <button data-tab="scanner">Scanner</button>
@@ -65,6 +77,7 @@
       <label class="chk"><input type="checkbox" id="cvVol" checked> Volume</label>
       <label class="chk"><input type="checkbox" id="cvLog"> Log scale</label>
       <span class="spacer"></span>
+      <button id="cvShare" class="share-btn" title="Share a link to this chart">↗ Share</button>
       <button id="cvMax" title="Full screen (Esc to exit)">⛶ Full screen</button>
     </div>
     <div class="toolbar wrap">
@@ -79,6 +92,14 @@
   <div id="cvStats" class="headline"></div>
   <div class="card toolbar wrap cv-actions"><span class="muted small">Do more with <b class="curSym"></b>:</span>
     <button data-goto="backtest">Backtest a strategy</button><button data-goto="paper">Paper trade</button><button data-goto="replay">Practise in replay</button></div>
+</section>
+
+<!-- ═════════════ WATCHLIST ═════════════ -->
+<section id="tab-watch" class="tab">
+  <div class="card">
+    <div class="toolbar"><div class="title">Your watchlist</div><span class="spacer"></span><span class="muted small">Tap ☆ next to any stock's name to add it</span></div>
+    <div id="watchList" class="watchlist"></div>
+  </div>
 </section>
 
 <!-- ═════════════ BACKTEST ═════════════ -->
@@ -119,6 +140,7 @@
       <div class="toolbar">
         <div id="btTitle" class="title">—</div>
         <span class="spacer"></span>
+        <button id="btShare" class="share-btn" title="Share a link to this backtest">↗ Share</button>
         <div id="ranges" class="seg"><button>1M</button><button>6M</button><button class="on">1Y</button><button>3Y</button><button>5Y</button><button>All</button></div>
       </div>
       <div class="toolbar">

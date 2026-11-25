@@ -211,7 +211,7 @@ def write_manifest():
     except Exception:
         pass
     for f in sorted(os.listdir(DATA)):
-        if f.endswith(".js") and f not in ("manifest.js",):
+        if f.endswith(".js") and f not in ("manifest.js", "summary.js"):
             with open(os.path.join(DATA, f)) as fh:
                 head = fh.read(400)
             try:
@@ -226,6 +226,29 @@ def write_manifest():
     with open(os.path.join(DATA, "manifest.js"), "w") as f:
         f.write("window.NPT_MANIFEST = " + json.dumps(items, indent=0) + ";\n")
     print(f"\nmanifest.js written with {len(items)} instruments")
+    write_summary(items)
+
+
+def write_summary(items):
+    """data/summary.js: a few numbers per symbol (latest close, previous close, 52-week high/low,
+    close a year ago) so the app can show prices in search and the watchlist without downloading
+    every symbol's full history."""
+    out = {}
+    for it in items:
+        df = read_js(os.path.join(DATA, it["file"]))
+        if df is None or df.empty:
+            continue
+        n = len(df)
+        y = max(0, n - 252)
+        out[it["symbol"]] = {
+            "d": df["Date"].iloc[-1], "c": round(float(df["Close"].iloc[-1]), 2),
+            "p": round(float(df["Close"].iloc[-2]), 2) if n > 1 else None,
+            "h": round(float(df["High"].iloc[y:].max()), 2), "l": round(float(df["Low"].iloc[y:].min()), 2),
+            "y": round(float(df["Close"].iloc[y]), 2),
+        }
+    with open(os.path.join(DATA, "summary.js"), "w") as f:
+        f.write("window.NPT_SUMMARY = " + json.dumps(out, separators=(",", ":")) + ";\n")
+    print(f"summary.js written for {len(out)} instruments")
 
 
 def main():
