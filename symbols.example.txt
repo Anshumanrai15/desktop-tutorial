@@ -1,0 +1,1 @@
+# One NSE symbol per line. Delete this file to use the live Nifty 100 list.

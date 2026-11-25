@@ -1,0 +1,48 @@
+# Downloads fresh Nifty 100 data every weekday evening and publishes the app to GitHub Pages.
+# The data is not committed to git; it is downloaded on GitHub's servers and goes straight into the website.
+name: Update data and publish site
+
+on:
+  schedule:
+    - cron: '47 12 * * 1-5'   # 18:17 IST, Mon–Fri, after market close
+  workflow_dispatch:          # "Run workflow" button in the Actions tab
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Download full history for all Nifty 100 stocks + indices
+        run: python download_data.py --update
+      - name: Fail if too few symbols downloaded
+        run: |
+          n=$(ls data/*.js | grep -v manifest.js | wc -l)
+          echo "Downloaded $n instruments"
+          test "$n" -ge 90
+      - name: Remove CSV copies to keep the site small
+        run: rm -rf data/csv .github
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
