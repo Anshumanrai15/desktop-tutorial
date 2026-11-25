@@ -1,6 +1,6 @@
 {
-  "name": "Nifty Paper Trader",
-  "short_name": "Nifty Trader",
+  "name": "PaperPaisaa",
+  "short_name": "PaperPaisaa",
   "description": "Backtest 164 trading strategies and paper-trade Nifty 100 stocks.",
   "start_url": "./",
   "scope": "./",
