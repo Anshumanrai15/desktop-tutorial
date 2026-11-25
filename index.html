@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nifty Paper Trader</title>
+<meta name="description" content="Backtest 164 trading strategies and paper-trade Nifty 100 stocks.">
+<meta name="theme-color" content="#0b0f16">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nifty Trader">
 <link rel="stylesheet" href="css/style.css">
 <script>
   // Data registry must exist before data/*.js files load.
@@ -22,7 +31,7 @@
   <div class="brand">📈 <span>Nifty Paper Trader</span></div>
   <div class="search">
     <span class="search-ico">🔍</span>
-    <input id="stockSearch" placeholder="Search stocks: name or symbol (e.g. reliance, hdfc, zomato)" autocomplete="off" spellcheck="false">
+    <input id="stockSearch" placeholder="Search stocks, e.g. reliance, zomato" autocomplete="off" spellcheck="false">
     <kbd>/</kbd>
     <div id="stockDD" class="dropdown" hidden></div>
   </div>
@@ -128,7 +137,7 @@
     </div>
     <p class="muted small">Uses your Backtest settings. "Signal" is the position the strategy wants for the next session. Click any row to open it.</p>
   </div>
-  <div class="card"><div class="tablewrap tall"><table id="scTable" class="sortable"></table></div></div>
+  <div class="card"><div class="tablewrap tall"><table id="scTable" class="sortable"><tr><td class="muted" style="text-align:center;padding:24px;white-space:normal">Pick a mode and tap <b>Run scan</b> to see results here.</td></tr></table></div></div>
 </section>
 
 <!-- ═════════════ OPTIMIZER ═════════════ -->
