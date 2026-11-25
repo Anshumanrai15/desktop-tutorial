@@ -98,12 +98,27 @@
   const hl = (text, q) => { const t = esc(text); if (!q) return t; const i = text.toLowerCase().indexOf(q.toLowerCase()); return i < 0 ? t : esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length)); };
   const subseq = (s, q) => { let j = 0; for (let i = 0; i < s.length && j < q.length; i++) if (s[i] === q[j]) j++; return j === q.length; };
 
+  // ── company logos (logos/<SYMBOL>.png), with an initials badge when there is no logo ──
+  const LOGOS = new Set(window.NPT_LOGOS || []);
+  function logoHTML(sym, cls = '') {
+    if (LOGOS.has(sym)) return `<img class="clogo ${cls}" src="logos/${encodeURIComponent(sym.replace(/&/g, '_').replace(/-/g, '_'))}.png" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'clogo ini ${cls}',textContent:this.dataset.ini}))" data-ini="${esc(initials(sym))}">`;
+    return `<span class="clogo ini ${cls}" style="background:${badgeColor(sym)}">${esc(initials(sym))}</span>`;
+  }
+  const INDEX_BADGE = { NIFTY50: '50', NIFTY100: '100', BANKNIFTY: 'BN', INDIAVIX: 'VIX' };
+  function initials(sym) {
+    if (INDEX_BADGE[sym]) return INDEX_BADGE[sym];
+    const words = nameOf(sym).replace(/\(.*?\)/g, ' ').replace(/\b(ltd|limited|the|of|and|india|co|corp|corporation|company|inc)\b\.?/gi, ' ').split(/[^A-Za-z0-9&]+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return (words[0] || sym).slice(0, 2).toUpperCase();
+  }
+  function badgeColor(sym) { let h = 0; for (const c of sym) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h} 45% 38%)`; }
+
   // ── stock search ──
   const recent = () => store.get('npt_recent', []);
   const pushRecent = s => store.set('npt_recent', [s, ...recent().filter(x => x !== s)].slice(0, 6));
   function stockItem(s, q) {
     const ch = dayChg(s), px = lastPx(s);
-    return { value: s, title: `<b>${hl(s, q)}</b>`, sub: hl(nameOf(s), q), right: isFinite(px) ? `${fmt(px)} <span class="${cls(ch)}">${pct(ch)}</span>` : (kindOf(s) === 'index' ? '<span class="muted small">index</span>' : '') };
+    return { value: s, title: `${logoHTML(s)}<b>${hl(s, q)}</b>`, sub: hl(nameOf(s), q), right: isFinite(px) ? `${fmt(px)} <span class="${cls(ch)}">${pct(ch)}</span>` : (kindOf(s) === 'index' ? '<span class="muted small">index</span>' : '') };
   }
   function scoreStock(s, Q) {
     const sl = s.toLowerCase(), n = nameOf(s).toLowerCase(), kw = kwOf(s).toLowerCase();
@@ -162,7 +177,7 @@
   function renderQuote() {
     const B = DB[S.sym]; if (!B) return; const n = B.c.length, px = B.c[n - 1], ch = dayChg(S.sym);
     const y = Math.max(0, n - 252); let hi = -Infinity, lo = Infinity; for (let i = y; i < n; i++) { if (B.h[i] > hi) hi = B.h[i]; if (B.l[i] < lo) lo = B.l[i]; } const r1 = (px / B.c[y] - 1) * 100;
-    $('quote').innerHTML = `<span class="sym">${esc(S.sym)}</span><span class="nm" title="${esc(nameOf(S.sym))}">${esc(nameOf(S.sym))}</span><span class="px">${fmt(px)}</span><span class="${cls(ch)}">${pct(ch)}</span>
+    $('quote').innerHTML = `${logoHTML(S.sym, 'qlogo')}<span class="sym">${esc(S.sym)}</span><span class="nm" title="${esc(nameOf(S.sym))}">${esc(nameOf(S.sym))}</span><span class="px">${fmt(px)}</span><span class="${cls(ch)}">${pct(ch)}</span>
       <span class="muted small" title="52-week range and 1-year return">52W ${fmt(lo, 0)}–${fmt(hi, 0)} · 1Y <span class="${cls(r1)}">${pct(r1, 1)}</span></span>`;
   }
   // Picking a stock in the header search opens it in the Chart tab.

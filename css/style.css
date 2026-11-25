@@ -319,3 +319,12 @@ body.noscroll { overflow: hidden; }
   .cv-max #cvMax { flex: 0 0 auto; min-height: 34px; padding: 4px 10px; font-size: 13px; }
   .cv-max .cv-chart { height: calc(100vh - 110px); height: calc(100dvh - 110px); }
 }
+
+/* ═════════ COMPANY LOGOS (search + stock header) ═════════ */
+.clogo { width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-right: 10px; object-fit: contain; background: #fff; padding: 2px; box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.35); }
+.clogo.ini { padding: 0; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .02em; background: #3a4558; }
+.dd-i > div:first-child { display: flex; align-items: center; min-width: 0; }
+.dd-i .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.quote { align-items: center; }
+.clogo.qlogo { width: 26px; height: 26px; margin-right: 0; }
+@media (max-width: 760px) { .clogo { width: 22px; height: 22px; margin-right: 8px; } .clogo.qlogo { width: 22px; height: 22px; } }
