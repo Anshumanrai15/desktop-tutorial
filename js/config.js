@@ -23,7 +23,7 @@ window.NPT_CONFIG = {
   brokers: [
     { name: 'Zerodha', url: '' },
     { name: 'Upstox', url: '' },
-    { name: 'INDmoney', url: 'Join me to invest across 6000*+ Stocks & ETFs. Use code ANSHBBLVIND or https://indmoney.onelink.me/RmHC/o8bpguca ' },
+    { name: 'INDmoney', url: 'Use code ANSHBBLVIND or https://indmoney.onelink.me/RmHC/o8bpguca ' },
     { name: 'Groww', url: 'https://app.groww.in/v3cO/0eh95v0b' },
   ],
 
