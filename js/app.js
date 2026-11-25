@@ -22,6 +22,7 @@
 
   // ═════════ DATA (current symbol first, the rest in the background) ═════════
   const DB = window.NPT_DATA.store, MAN = window.NPT_MANIFEST || [], NAMES = window.NPT_NAMES || {};
+  const SUM = window.NPT_SUMMARY || null;   // small per-symbol summary; when present, full histories load on demand
   function loadScript(src) { return new Promise((res, rej) => { const s = el('script', { src }); s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s); }); }
   const manOf = sym => MAN.find(m => m.symbol === sym);
   const nameOf = sym => (manOf(sym) && manOf(sym).name) || (NAMES[sym] && NAMES[sym][0]) || sym;
@@ -41,7 +42,8 @@
     return loadedAll;
   }
   function updateStatus() {
-    const syms = allSyms().filter(s => DB[s]); const last = syms.map(s => DB[s].d[DB[s].d.length - 1]).sort().pop();
+    const syms = SUM ? allSyms() : allSyms().filter(s => DB[s]); let last = null;
+    for (const s of syms) { const d = DB[s] ? DB[s].d[DB[s].d.length - 1] : SUM && SUM[s] && SUM[s].d; if (d && (!last || d > last)) last = d; }
     $('dataStatus').textContent = `${syms.length} instruments · data to ${last || '—'}`;
   }
   // IndexedDB for imported CSVs
@@ -70,8 +72,16 @@
     const u = recs.filter((x, i) => !i || x.d !== recs[i - 1].d);
     return { symbol, kind: /NIFTY|SENSEX|INDEX|VIX/i.test(symbol) ? 'index' : 'stock', source: 'CSV import', d: u.map(x => x.d), o: u.map(x => x.o), h: u.map(x => x.h), l: u.map(x => x.l), c: u.map(x => x.c), v: u.map(x => x.v) };
   }
-  const lastPx = sym => { const B = DB[sym]; return B ? B.c[B.c.length - 1] : NaN; };
-  const dayChg = sym => { const B = DB[sym]; if (!B || B.c.length < 2) return NaN; const n = B.c.length; return (B.c[n - 1] / B.c[n - 2] - 1) * 100; };
+  // Latest price, day change, 52-week range and 1-year-ago close: from the loaded history if we
+  // have it, otherwise from data/summary.js (so search and the watchlist don't need full histories).
+  function stat(sym) {
+    const B = DB[sym];
+    if (B && B.c.length) { const n = B.c.length, y = Math.max(0, n - 252); let h = -Infinity, l = Infinity; for (let i = y; i < n; i++) { if (B.h[i] > h) h = B.h[i]; if (B.l[i] < l) l = B.l[i]; }
+      return { d: B.d[n - 1], c: B.c[n - 1], p: n > 1 ? B.c[n - 2] : NaN, h, l, y: B.c[y] }; }
+    return SUM && SUM[sym] ? SUM[sym] : null;
+  }
+  const lastPx = sym => { const t = stat(sym); return t ? t.c : NaN; };
+  const dayChg = sym => { const t = stat(sym); return t && t.p ? (t.c / t.p - 1) * 100 : NaN; };
 
   // ═════════ COMBOBOX (stock search + strategy pickers) ═════════
   function combo(input, box, { source, onPick, display }) {
@@ -137,8 +147,10 @@
     const syms = allSyms();
     if (!q) {
       const out = []; const rec = recent().filter(s => syms.includes(s));
+      const wl = watchlist().filter(s => syms.includes(s)).slice(0, 6);
+      if (wl.length) { out.push({ header: '★ Watchlist' }); wl.forEach(s => out.push(stockItem(s))); }
       if (rec.length) { out.push({ header: 'Recent' }); rec.forEach(s => out.push(stockItem(s))); }
-      const mv = stockSyms().filter(s => DB[s]).map(s => ({ s, ch: dayChg(s) })).filter(x => isFinite(x.ch)).sort((a, b) => b.ch - a.ch);
+      const mv = stockSyms().map(s => ({ s, ch: dayChg(s) })).filter(x => isFinite(x.ch)).sort((a, b) => b.ch - a.ch);
       if (mv.length >= 8) { out.push({ header: 'Top gainers (latest day)' }); mv.slice(0, 4).forEach(x => out.push(stockItem(x.s))); out.push({ header: 'Top losers (latest day)' }); mv.slice(-4).reverse().forEach(x => out.push(stockItem(x.s))); }
       if (!out.length) { out.push({ header: 'All instruments' }); syms.slice(0, 12).forEach(s => out.push(stockItem(s))); }
       return out;
@@ -173,11 +185,13 @@
     if (tab === 'replay') rpLoad();
     if (tab === 'library') renderLibrary();
     if (tab === 'chart') cvRender();
+    syncHash();
   }
   function renderQuote() {
     const B = DB[S.sym]; if (!B) return; const n = B.c.length, px = B.c[n - 1], ch = dayChg(S.sym);
     const y = Math.max(0, n - 252); let hi = -Infinity, lo = Infinity; for (let i = y; i < n; i++) { if (B.h[i] > hi) hi = B.h[i]; if (B.l[i] < lo) lo = B.l[i]; } const r1 = (px / B.c[y] - 1) * 100;
-    $('quote').innerHTML = `${logoHTML(S.sym, 'qlogo')}<span class="sym">${esc(S.sym)}</span><span class="nm" title="${esc(nameOf(S.sym))}">${esc(nameOf(S.sym))}</span><span class="px">${fmt(px)}</span><span class="${cls(ch)}">${pct(ch)}</span>
+    const starred = watchlist().includes(S.sym);
+    $('quote').innerHTML = `${logoHTML(S.sym, 'qlogo')}<span class="sym">${esc(S.sym)}</span><button id="starBtn" class="star${starred ? ' on' : ''}" title="${starred ? 'Remove from' : 'Add to'} watchlist" aria-pressed="${starred}">${starred ? '★' : '☆'}</button><span class="nm" title="${esc(nameOf(S.sym))}">${esc(nameOf(S.sym))}</span><span class="px">${fmt(px)}</span><span class="${cls(ch)}">${pct(ch)}</span>
       <span class="muted small" title="52-week range and 1-year return">52W ${fmt(lo, 0)}–${fmt(hi, 0)} · 1Y <span class="${cls(r1)}">${pct(r1, 1)}</span></span>`;
   }
   // Picking a stock in the header search opens it in the Chart tab.
@@ -191,7 +205,7 @@
     document.querySelectorAll('#tabs button[data-tab]').forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.id === 'tab-' + b.dataset.tab));
     b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-    onTab[b.dataset.tab] && onTab[b.dataset.tab](); window.dispatchEvent(new Event('resize')); });
+    onTab[b.dataset.tab] && onTab[b.dataset.tab](); window.dispatchEvent(new Event('resize')); syncHash(); });
   const gotoTab = t => document.querySelector(`#tabs button[data-tab="${t}"]`).click();
 
   // ═════════ CHART HELPERS ═════════
@@ -320,6 +334,7 @@
       ['Best trade', pct(m.best), 1], ['Worst trade', pct(m.worst), -1], ['Avg bars held', fmt(m.avgBars, 1)], ['Time in market', fmt(m.exposure, 1) + '%'], ['Max losing streak', fmt(m.maxLoseStreak, 0)], ['Longest drawdown', fmt(m.longestDDdays, 0) + ' bars'], ['Years tested', fmt(m.years, 1)], ['Buy & hold total', pct(m.bhReturn), m.bhReturn]]);
     $('tradesSummary').textContent = `Trades (${r.trades.length})`;
     renderTrades(r.trades);
+    syncHash();
   }
   function metricCards(box, items) { box.innerHTML = items.map(([k, v, c, sub]) => `<div class="metric"><div class="k">${k}</div><div class="v ${c !== undefined ? cls(c) : ''}">${v}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`).join(''); }
   function renderTrades(tr) {
@@ -664,6 +679,88 @@
   }
   onTab.chart = cvRender;
 
+  // ═════════ WATCHLIST ═════════
+  function watchlist() { return store.get('npt_watch', []); }
+  function toggleWatch(sym) {
+    const w = watchlist(), i = w.indexOf(sym);
+    if (i < 0) w.unshift(sym); else w.splice(i, 1);
+    store.set('npt_watch', w); renderQuote();
+    if (activeTab() === 'watch') renderWatch();
+    toast(i < 0 ? `${sym} added to your watchlist` : `${sym} removed from your watchlist`);
+  }
+  $('quote').addEventListener('click', e => { if (e.target.closest('#starBtn')) toggleWatch(S.sym); });
+  async function renderWatch() {
+    const w = watchlist().filter(s => allSyms().includes(s));
+    if (!w.length) { $('watchList').innerHTML = '<div class="empty">Your watchlist is empty.<br><span class="muted small">Search for a stock and tap the ☆ next to its name at the top.</span></div>'; return; }
+    if (!SUM) await Promise.all(w.map(ensure));
+    $('watchList').innerHTML = w.map(s => {
+      const t = stat(s); if (!t) return '';
+      const ch = t.p ? (t.c / t.p - 1) * 100 : NaN, r1 = t.y ? (t.c / t.y - 1) * 100 : NaN;
+      const pos = t.h > t.l ? Math.max(0, Math.min(100, (t.c - t.l) / (t.h - t.l) * 100)) : 50;
+      return `<div class="wrow" data-sym="${esc(s)}">
+        <div class="wname">${logoHTML(s)}<div><b>${esc(s)}</b><span class="muted small">${esc(nameOf(s))}</span></div></div>
+        <div class="wrange" title="52-week range"><span class="muted small">${fmt(t.l, 0)}</span><i><b style="left:${pos}%"></b></i><span class="muted small">${fmt(t.h, 0)}</span></div>
+        <div class="w1y ${cls(r1)}" title="1-year return">${isFinite(r1) ? '1Y ' + pct(r1, 1) : ''}</div>
+        <div class="wpx"><b>${fmt(t.c)}</b><span class="${cls(ch)}">${pct(ch)}</span></div>
+        <button class="wdel ghost" data-del="${esc(s)}" title="Remove from watchlist">✕</button></div>`;
+    }).join('');
+  }
+  $('watchList').addEventListener('click', async e => {
+    const del = e.target.closest('[data-del]'); if (del) { e.stopPropagation(); toggleWatch(del.dataset.del); return; }
+    const row = e.target.closest('.wrow'); if (!row) return;
+    await setSymbol(row.dataset.sym); gotoTab('chart');
+  });
+  onTab.watch = renderWatch;
+
+  // ═════════ SHAREABLE LINKS (#tab/SYMBOL/strategy?param=value) ═════════
+  const SYMBOL_TABS = ['chart', 'backtest', 'optimizer', 'paper', 'replay'];
+  let applyingHash = false, routeReady = false;   // routeReady: don't touch the address until an incoming link has been read
+  function currentHash() {
+    const t = activeTab(); let h = '#' + t;
+    if (SYMBOL_TABS.includes(t) && S.sym) h += '/' + encodeURIComponent(S.sym);
+    if (t === 'backtest' && btStrat.id && byId[btStrat.id]) {
+      h += '/' + btStrat.id;
+      const def = byId[btStrat.id].params, cur = readParams($('btParams'));
+      const diff = Object.entries(cur).filter(([k, v]) => k in def && def[k] !== v);
+      if (diff.length) h += '?' + diff.map(([k, v]) => `${k}=${v}`).join('&');
+    }
+    return h;
+  }
+  function syncHash() {
+    if (applyingHash || !routeReady || !S.sym) return;
+    const h = currentHash(); if (location.hash !== h) history.replaceState(null, '', h);
+  }
+  function hashRoute() {
+    const raw = location.hash.slice(1); if (!raw) return {};
+    const [path, qs] = raw.split('?'); const [tab, sym, strat] = path.split('/').map(x => { try { return decodeURIComponent(x); } catch { return x; } });
+    return { tab, sym: sym && sym.toUpperCase(), strat, qs };
+  }
+  async function applyHash() {
+    const r = hashRoute(); if (!r.tab || !document.querySelector(`#tabs button[data-tab="${r.tab}"]`)) return;
+    const btn = document.querySelector(`#tabs button[data-tab="${r.tab}"]`); if (btn.hidden) return;
+    applyingHash = true;
+    try {
+      if (r.sym && r.sym !== S.sym && allSyms().includes(r.sym)) await setSymbol(r.sym);
+      if (r.tab === 'backtest' && r.strat && byId[r.strat]) {
+        const params = {}; new URLSearchParams(r.qs || '').forEach((v, k) => { if (k in byId[r.strat].params && v !== '' && isFinite(+v)) params[k] = +v; });
+        selectStrategy(r.strat, params);
+      }
+      if (activeTab() !== r.tab) gotoTab(r.tab);
+      if (r.tab === 'backtest') runBacktest();
+    } finally { applyingHash = false; }
+    syncHash();
+  }
+  async function shareCurrent(kind) {
+    syncHash();
+    const url = location.href, s = S.sym, nm = nameOf(s);
+    let text = `${s} (${nm}) chart on PaperPaisaa`;
+    if (kind === 'backtest' && lastResult) { const m = lastResult.r.metrics; text = `Backtest of "${lastResult.s.name}" on ${s}: CAGR ${pct(m.cagr, 1)} vs buy & hold ${pct(m.bhCagr, 1)} (hypothetical, past data) on PaperPaisaa`; }
+    try { if (navigator.share) { await navigator.share({ title: 'PaperPaisaa', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(url); toast('Link copied. Paste it anywhere to share.'); } catch { prompt('Copy this link:', url); }
+  }
+  $('cvShare').onclick = () => shareCurrent('chart');
+  $('btShare').onclick = () => shareCurrent('backtest');
+
   // ═════════ SUPPORT: UPI donations, broker referrals, first-visit notice ═════════
   // Everything here is driven by js/config.js; features with no settings stay hidden.
   const CFG = window.NPT_CONFIG || {};
@@ -714,9 +811,14 @@
     $('dataStatus').textContent = 'Loading…';
     const saved = store.get('npt_sym', null); let syms = allSyms();
     if (!syms.length) { await loadImported(); syms = allSyms(); }
-    const first = [saved, 'RELIANCE', 'NIFTY50'].find(s => s && syms.includes(s)) || syms[0];
+    const first = [hashRoute().sym, saved, 'RELIANCE', 'NIFTY50'].find(s => s && syms.includes(s)) || syms[0];
     if (first) await setSymbol(first);
     if (first && !DB[first]) document.querySelector('main').prepend(el('div', { className: 'banner' }, `<b>Data files could not be loaded.</b> <code>data\\manifest.js</code> lists ${MAN.length} instruments, but <code>data\\${esc(manOf(first)?.file || '')}</code> is missing. Run <code>python download_data.py --update</code> in <code>${esc(here)}</code>.`));
-    loadEverything();   // the rest of the data streams in the background
+    // With a summary file, other stocks load only when needed (search, watchlist and prices work
+    // from the summary). Without one, stream everything in the background as before.
+    if (SUM) { await loadImported(); updateStatus(); } else loadEverything();
+    await applyHash();
+    routeReady = true; syncHash();
+    window.addEventListener('hashchange', () => applyHash());
   })();
 })();

@@ -29,7 +29,9 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - name: Download full history for all Nifty 100 stocks + indices
-        run: python download_data.py --update
+        # Starts from the data currently on the live site, so a lagging day at Yahoo can never
+        # roll published prices backwards.
+        run: python download_data.py --update --restore-from=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
       - name: Fail if too few symbols downloaded
         run: |
           n=$(ls data/*.js | grep -v manifest.js | wc -l)

@@ -17,6 +17,9 @@ Usage:
     python download_data.py                 # all Nifty 100 + indices
     python download_data.py RELIANCE TCS    # only some symbols
     python download_data.py --update        # re-download everything (run daily to refresh)
+    python download_data.py --update --restore-from=https://you.github.io/site/
+                                            # first copy the live site's data, so days a lagging
+                                            # source leaves out are never lost (used by the workflow)
 
 The constituent list is pulled live from NSE archives when reachable; otherwise the
 built-in list below is used. Edit symbols.txt (one NSE symbol per line) to use your own list.
@@ -92,10 +95,20 @@ def from_yahoo(sym, yahoo_codes):
     import yfinance as yf
     for code in yahoo_codes:
         try:
-            df = yf.Ticker(code).history(period="max", interval="1d", auto_adjust=True, actions=False)
+            t = yf.Ticker(code)
+            df = t.history(period="max", interval="1d", auto_adjust=True, actions=False)
             if df is not None and len(df) > 20:
+                # Yahoo's full-history answer sometimes lags by a day or two; the last-month
+                # request usually has the newest days, so combine both (newer rows win).
+                try:
+                    recent = t.history(period="1mo", interval="1d", auto_adjust=True, actions=False)
+                    if recent is not None and len(recent):
+                        df = pd.concat([df, recent])
+                except Exception as e:
+                    print(f"   yahoo {code} recent-days request failed: {e}")
                 df = df.reset_index()
                 df["Date"] = pd.to_datetime(df["Date"]).dt.tz_localize(None).dt.strftime("%Y-%m-%d")
+                df = df.drop_duplicates("Date", keep="last")
                 return df[["Date", "Open", "High", "Low", "Close", "Volume"]], f"yahoo:{code}"
         except Exception as e:
             print(f"   yahoo {code} failed: {e}")
@@ -130,6 +143,52 @@ def clean(df):
     return df
 
 
+def read_js(path):
+    """Read a data/<SYMBOL>.js file back into a DataFrame (None if missing or unreadable)."""
+    try:
+        t = open(path).read()
+        d = json.loads(t[t.index("(") + 1:t.rindex(")")])
+        return pd.DataFrame({"Date": d["d"], "Open": d["o"], "High": d["h"], "Low": d["l"],
+                             "Close": d["c"], "Volume": d["v"]})
+    except Exception:
+        return None
+
+
+def keep_newer_days(fn, df):
+    """Never let an update make data older: if the previously saved file has days that the
+    new download is missing at the end (a lagging source), carry those days over."""
+    old = read_js(os.path.join(DATA, fn + ".js"))
+    if old is None or old.empty:
+        return df, 0
+    extra = old[old["Date"] > df["Date"].iloc[-1]]
+    if extra.empty:
+        return df, 0
+    return pd.concat([df, extra], ignore_index=True), len(extra)
+
+
+def restore_from(site):
+    """Download the currently published data files from the live site into data/, so a
+    lagging source can't roll the site's prices backwards (used by the GitHub workflow)."""
+    import urllib.request
+    site = site.rstrip("/") + "/"
+    try:
+        man = urllib.request.urlopen(site + "data/manifest.js", timeout=30).read().decode()
+        items = json.loads(man[man.index("["):man.rindex("]") + 1])
+    except Exception as e:
+        print("Could not read the published manifest, starting fresh:", e)
+        return
+    n = 0
+    for it in items:
+        try:
+            raw = urllib.request.urlopen(site + "data/" + it["file"], timeout=30).read()
+            with open(os.path.join(DATA, it["file"]), "wb") as f:
+                f.write(raw)
+            n += 1
+        except Exception as e:
+            print("  could not restore", it.get("file"), e)
+    print(f"Restored {n} published data files from {site}")
+
+
 def write_js(sym, df, source, kind):
     r = lambda s: [round(float(x), 2) for x in s]
     payload = {
@@ -152,7 +211,7 @@ def write_manifest():
     except Exception:
         pass
     for f in sorted(os.listdir(DATA)):
-        if f.endswith(".js") and f not in ("manifest.js",):
+        if f.endswith(".js") and f not in ("manifest.js", "summary.js"):
             with open(os.path.join(DATA, f)) as fh:
                 head = fh.read(400)
             try:
@@ -167,10 +226,36 @@ def write_manifest():
     with open(os.path.join(DATA, "manifest.js"), "w") as f:
         f.write("window.NPT_MANIFEST = " + json.dumps(items, indent=0) + ";\n")
     print(f"\nmanifest.js written with {len(items)} instruments")
+    write_summary(items)
+
+
+def write_summary(items):
+    """data/summary.js: a few numbers per symbol (latest close, previous close, 52-week high/low,
+    close a year ago) so the app can show prices in search and the watchlist without downloading
+    every symbol's full history."""
+    out = {}
+    for it in items:
+        df = read_js(os.path.join(DATA, it["file"]))
+        if df is None or df.empty:
+            continue
+        n = len(df)
+        y = max(0, n - 252)
+        out[it["symbol"]] = {
+            "d": df["Date"].iloc[-1], "c": round(float(df["Close"].iloc[-1]), 2),
+            "p": round(float(df["Close"].iloc[-2]), 2) if n > 1 else None,
+            "h": round(float(df["High"].iloc[y:].max()), 2), "l": round(float(df["Low"].iloc[y:].min()), 2),
+            "y": round(float(df["Close"].iloc[y]), 2),
+        }
+    with open(os.path.join(DATA, "summary.js"), "w") as f:
+        f.write("window.NPT_SUMMARY = " + json.dumps(out, separators=(",", ":")) + ";\n")
+    print(f"summary.js written for {len(out)} instruments")
 
 
 def main():
     os.makedirs(CSV_DIR, exist_ok=True)
+    for a in sys.argv[1:]:
+        if a.startswith("--restore-from="):
+            restore_from(a.split("=", 1)[1])
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     force = "--update" in sys.argv
     stocks = [a.upper() for a in args] if args else get_symbol_list()
@@ -195,9 +280,11 @@ def main():
             failed.append(sym)
             continue
         df = clean(df)
+        df, carried = keep_newer_days(fn, df)
         write_js(sym, df, src, kind)
         ok += 1
-        print(f"[{i}/{len(jobs)}] {sym}: {len(df)} bars {df['Date'].iloc[0]} -> {df['Date'].iloc[-1]} ({src})")
+        note = f" (+{carried} newer day(s) kept from the previous update)" if carried else ""
+        print(f"[{i}/{len(jobs)}] {sym}: {len(df)} bars {df['Date'].iloc[0]} -> {df['Date'].iloc[-1]} ({src}){note}")
         time.sleep(0.3)
     write_manifest()
     print(f"Done. {ok} ok, {len(failed)} failed: {failed}")
