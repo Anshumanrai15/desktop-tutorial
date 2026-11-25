@@ -69,8 +69,14 @@ SOURCES = [
 ]
 
 # Logos checked by hand and rejected (blurry or not the company's real logo): these show initials.
-SKIP = {"TATAPOWER", "SHRIRAMFIN", "LODHA", "GODREJCP", "CGPOWER", "SBILIFE", "TORNTPHARM", "VBL",
-        "JINDALSTEL", "DMART", "HINDZINC"}
+SKIP = {"TATAPOWER", "SHRIRAMFIN", "GODREJCP", "SBILIFE"}
+
+# Logos captured by hand from each company's own website header (official logo or its brand mark)
+# and checked by eye. The script never overwrites these; delete a file here to let it re-fetch.
+MANUAL = {"HDFCBANK", "KOTAKBANK", "AXISBANK", "MUTHOOTFIN", "TATACAP", "ITC", "BHARTIARTL", "LT", "MARUTI",
+          "BAJAJ-AUTO", "EICHERMOT", "TATAMOTORS", "TMCV", "TMPV", "BRITANNIA", "HAVELLS", "PIDILITIND",
+          "HINDALCO", "ULTRACEMCO", "COALINDIA", "TRENT", "DMART", "JINDALSTEL", "LODHA", "NAUKRI", "CGPOWER",
+          "VBL", "HINDZINC", "TORNTPHARM", "RELIANCE"}
 MIN_SIZE = 32  # icons smaller than this look blurry; fall back to initials instead
 
 
@@ -141,6 +147,10 @@ def main():
         print("could not sample icon.horse placeholder:", e)
     have, cache = [], {}
     for sym, domain in DOMAINS.items():
+        if sym in MANUAL and os.path.exists(os.path.join(OUT, file_name(sym) + ".png")):
+            have.append(sym)
+            print(f"  {sym}: kept hand-captured logo")
+            continue
         if sym in SKIP:
             print(f"  {sym}: skipped (rejected on review), app will show initials")
             continue
