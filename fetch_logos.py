@@ -69,14 +69,17 @@ SOURCES = [
 ]
 
 # Logos checked by hand and rejected (blurry or not the company's real logo): these show initials.
-SKIP = {"TATAPOWER", "SHRIRAMFIN", "GODREJCP", "SBILIFE"}
+SKIP = set()
 
-# Logos captured by hand from each company's own website header (official logo or its brand mark)
+# Logos captured by hand from each company's own website header or its Wikipedia logo file (official logo or brand mark)
 # and checked by eye. The script never overwrites these; delete a file here to let it re-fetch.
 MANUAL = {"HDFCBANK", "KOTAKBANK", "AXISBANK", "MUTHOOTFIN", "TATACAP", "ITC", "BHARTIARTL", "LT", "MARUTI",
           "BAJAJ-AUTO", "EICHERMOT", "TATAMOTORS", "TMCV", "TMPV", "BRITANNIA", "HAVELLS", "PIDILITIND",
           "HINDALCO", "ULTRACEMCO", "COALINDIA", "TRENT", "DMART", "JINDALSTEL", "LODHA", "NAUKRI", "CGPOWER",
-          "VBL", "HINDZINC", "TORNTPHARM", "RELIANCE"}
+          "VBL", "HINDZINC", "TORNTPHARM", "RELIANCE",
+          # official logo files from each company's Wikipedia / Wikimedia page (rendered at 320px)
+          "SBIN", "ONGC", "UNIONBANK", "IRFC", "JIOFIN", "ASIANPAINT", "CIPLA", "GAIL", "APOLLOHOSP", "GODREJCP",
+          "SBILIFE", "SHRIRAMFIN", "TATAPOWER", "TATASTEEL", "VEDL", "MAZDOCK"}
 MIN_SIZE = 32  # icons smaller than this look blurry; fall back to initials instead
 
 
