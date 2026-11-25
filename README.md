@@ -24,6 +24,17 @@ The app is a static site (HTML + JS + data files), so any static host works.
 
 Note: the data comes from Yahoo Finance and NSE. Their terms restrict redistributing their data, so check them before publishing to the public.
 
+## Donations, referral links and legal pages
+
+Everything is controlled by **`js/config.js`**. On GitHub, open that file, click the ✏️ pencil, fill in what you want, and click **Commit changes**. The site republishes in about 2 minutes. Anything left empty stays hidden.
+
+- `upi.id` / `upi.name`: your UPI ID (e.g. `yourname@okhdfcbank`). Turns on the **Support ❤** tab with a UPI QR code, quick amounts and a "Pay with a UPI app" button on phones.
+- `brokers[].url`: your personal broker referral links (must start with `https://`). Shows "Open account" buttons in the Support tab, plus a small "trade with real money" link in Paper Trading. Includes a referral-fee disclosure.
+- `contactEmail` / `ownerName`: shown on the Terms and Privacy pages.
+- `showDisclaimerOnFirstVisit`: the one-time "educational use only" notice.
+
+The legal pages (`legal/disclaimer.html`, `legal/terms.html`, `legal/privacy.html`) are general templates for an educational tool in India. **They are not legal advice.** Have a lawyer review them before you earn money from the site, and update them if you add ads, analytics, logins or payments.
+
 ## Tabs
 
 - **Backtest**: pick a stock and strategy, tune parameters, costs (STT/charges 0.12% per side by default), slippage, stop-loss, target, ATR trailing stop, max hold and date range. You get a candlestick chart with trade markers, any indicators, an equity curve vs buy & hold, drawdown, 24 metrics, and a trade list with CSV export.
