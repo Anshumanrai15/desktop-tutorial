@@ -51,6 +51,7 @@
     <kbd>/</kbd>
     <div id="stockDD" class="dropdown" hidden></div>
   </div>
+  <button id="guideBtnTop" class="hdr-guide guide-open" title="A quick tour of every screen">❓ Guide</button>
   <div id="quote" class="quote"></div>
 </header>
 <nav id="tabs">
@@ -66,6 +67,7 @@
   <button data-tab="options">Options Lab</button>
   <button data-tab="data">Data</button>
   <button data-tab="support" id="supportTabBtn" class="support-tab" hidden>Support ❤</button>
+  <button id="guideBtn" class="guide-btn guide-open" title="A quick tour of every screen">❓ Guide</button>
   <span class="spacer"></span><span id="dataStatus" class="muted small"></span>
 </nav>
 
@@ -233,7 +235,7 @@
         <label>Est. value <input id="ptValue" disabled></label>
       </div>
       <button id="ptPlace" class="primary">Place order</button>
-      <p class="muted small">Market orders fill at the latest close. Limit and stop orders fill automatically against new days when you update data.</p>
+      <p class="muted small">Market orders fill at the latest close. Limit and stop orders fill automatically when new prices arrive (every weekday evening).</p>
       <p id="ptReal" class="small" hidden>Ready to trade with real money? <a href="#" data-goto="support">Open a demat account →</a></p>
     </div>
     <div class="card" style="flex:1;min-width:300px">
@@ -242,7 +244,7 @@
       <div class="grid2"><label>₹ per position <input id="apAlloc" type="number" value="100000"></label>
       <label>Universe <select id="apUniverse"><option value="all">All stocks</option><option value="sel">Current stock only</option></select></label></div>
       <button id="apRun" class="primary">Run on latest bar</button>
-      <p class="muted small">Buys when the strategy turns long and sells when it goes flat. Run once a day after updating data.</p>
+      <p class="muted small">Buys when the strategy turns long and sells when it goes flat. Run it once a day, after new prices arrive in the evening.</p>
       <div id="apLog" class="small muted"></div>
     </div>
   </div>
@@ -356,10 +358,18 @@
 <!-- ═════════════ DATA ═════════════ -->
 <section id="tab-data" class="tab">
   <div class="card">
-    <div class="title">Update data</div>
-    <p>Run <code>python download_data.py --update</code> in this folder each evening, then reload this page. Run it without <code>--update</code> to fetch only symbols that are missing.</p>
-    <p class="muted small">You can also import CSVs with Date, Open, High, Low, Close and Volume columns. NSE, broker and Kaggle formats work, and the file name becomes the symbol.</p>
-    <div class="toolbar"><input type="file" id="csvFiles" multiple accept=".csv,.txt"><button id="clearImported" class="ghost danger">Delete imported data</button></div>
+    <div class="web-only">
+      <div class="title">About the data</div>
+      <p>Daily prices for the Nifty 100 stocks and main indices, going back up to 30 years. They update automatically after the market closes every weekday, from Yahoo Finance and NSE's official end-of-day files.</p>
+    </div>
+    <div class="local-only">
+      <div class="title">Update data</div>
+      <p>Run <code>python download_data.py --update</code> in this folder each evening, then reload this page. Run it without <code>--update</code> to fetch only symbols that are missing.</p>
+    </div>
+    <details class="csv-import"><summary class="small">Import your own price data (CSV)</summary>
+      <p class="muted small">Upload CSVs with Date, Open, High, Low, Close and Volume columns. NSE, broker and Kaggle formats work, and the file name becomes the symbol. Imported data stays in this browser only.</p>
+      <div class="toolbar"><input type="file" id="csvFiles" multiple accept=".csv,.txt"><button id="clearImported" class="ghost danger">Delete imported data</button></div>
+    </details>
   </div>
   <div class="card"><div class="tablewrap tall"><table id="dataTable"></table></div></div>
 </section>
@@ -398,7 +408,7 @@
 
 <footer class="site-footer">
   <span>Educational tool · Not investment advice · Not SEBI-registered</span>
-  <span><a href="legal/disclaimer.html">Disclaimer</a> · <a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a><span id="footSupport" hidden> · <a href="#" data-goto="support">Support ❤</a></span></span>
+  <span><a href="legal/disclaimer.html">Disclaimer</a> · <a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a><span> · <a href="#" id="footGuide">Guide</a></span><span id="footSupport" hidden> · <a href="#" data-goto="support">Support ❤</a></span></span>
 </footer>
 
 <div id="ackModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ackTitle">
@@ -413,10 +423,18 @@
     <div class="toolbar"><a href="legal/disclaimer.html" class="small">Read the full disclaimer</a><span class="spacer"></span><button id="ackOk" class="primary">I understand</button></div>
   </div>
 </div>
+<div id="tourCard" class="tour" hidden role="dialog" aria-live="polite" aria-labelledby="tourTitle">
+  <div class="tour-top"><span id="tourStep" class="muted small"></span><button id="tourX" class="ghost tour-x" title="Close the guide (Esc)" aria-label="Close">✕</button></div>
+  <div class="tour-title" id="tourTitle"></div>
+  <div class="tour-text" id="tourText"></div>
+  <div class="tour-dots" id="tourDots"></div>
+  <div class="toolbar"><button id="tourBack" class="ghost">Back</button><span class="spacer"></span><button id="tourAlt" class="ghost" hidden></button><button id="tourNext" class="primary">Next</button></div>
+</div>
 <div id="toast"></div>
 <script src="js/app.js"></script>
 <script src="js/reality.js"></script>
 <script src="js/challenge.js"></script>
 <script src="js/options.js"></script>
+<script src="js/guide.js"></script>
 </body>
 </html>
