@@ -286,3 +286,33 @@ header { padding-top: max(10px, env(safe-area-inset-top)); padding-left: max(20p
   .doc { padding: 16px; }
   .doc h1 { font-size: 22px; }
 }
+
+/* ═════════ CHART TAB ═════════ */
+.cv-wrap { position: relative; }
+.cv-legend { position: absolute; left: 8px; top: 6px; z-index: 5; font-size: 12px; pointer-events: none; background: rgba(18,24,34,.8); padding: 3px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; max-width: calc(100% - 90px); }
+.cv-legend b { font-weight: 600; }
+.cv-chart { height: calc(100vh - var(--hdr, 57px) - 250px); min-height: 380px; }
+#cvDraw.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cv-max { position: fixed; inset: 0; z-index: 150; margin: 0; border-radius: 0; overflow: auto; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.cv-max .cv-chart { height: calc(100vh - 150px); }
+body.noscroll { overflow: hidden; }
+.cv-actions { align-items: center; }
+@media (max-width: 760px) {
+  .cv-chart { height: 58vh; min-height: 300px; }
+  .cv-max .cv-chart { height: calc(100vh - 210px); }
+  #cvType, #cvRanges { display: flex; width: 100%; }
+  #cvType button, #cvRanges button { flex: 1; padding: 6px 2px; font-size: 12px; }
+  #cvIndPicker { flex: 1 1 100%; }
+  #cvDraw, #cvClear { flex: 1; }
+  #cvChips { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px; width: 100%; scrollbar-width: none; }
+  #cvChips::-webkit-scrollbar { display: none; }
+  #cvMax { flex: 1 1 100%; }
+  .cv-legend { font-size: 11px; max-width: calc(100% - 70px); }
+  .cv-actions button { flex: 1 1 100%; }
+  /* Phone full screen: only ranges + exit button, so the chart gets most of the screen */
+  .cv-max #cvType, .cv-max label.chk, .cv-max .toolbar:nth-child(2) { display: none; }
+  .cv-max .toolbar { flex-wrap: nowrap; }
+  .cv-max #cvRanges { flex: 1; width: auto; }
+  .cv-max #cvMax { flex: 0 0 auto; min-height: 34px; padding: 4px 10px; font-size: 13px; }
+  .cv-max .cv-chart { height: calc(100vh - 110px); height: calc(100dvh - 110px); }
+}
