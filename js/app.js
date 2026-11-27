@@ -45,6 +45,19 @@
     const syms = SUM ? allSyms() : allSyms().filter(s => DB[s]); let last = null;
     for (const s of syms) { const d = DB[s] ? DB[s].d[DB[s].d.length - 1] : SUM && SUM[s] && SUM[s].d; if (d && (!last || d > last)) last = d; }
     $('dataStatus').textContent = `${syms.length} instruments · data to ${last || '—'}`;
+    staleNotice(last);
+  }
+  // On the website, tell users if prices are behind by 2 or more weekdays (normally never shown).
+  function staleNotice(last) {
+    if (!last || location.protocol === 'file:' || $('staleBanner')) return;
+    const ist = new Date(Date.now() + 330 * 60000), wd = d => d.getUTCDay() % 6 !== 0;   // shift to India time
+    const d = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+    if (!wd(d) || ist.getUTCHours() < 21) d.setUTCDate(d.getUTCDate() - 1);               // today's prices are expected by 9 pm
+    let missing = 0;
+    for (; d.toISOString().slice(0, 10) > last && missing < 30; d.setUTCDate(d.getUTCDate() - 1)) if (wd(d)) missing++;
+    if (missing < 2) return;
+    const nice = new Date(last + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    document.querySelector('main').prepend(el('div', { id: 'staleBanner', className: 'banner' }, `Prices were last updated on <b>${nice}</b>. The latest update is running late; prices will refresh automatically.`));
   }
   // IndexedDB for imported CSVs
   const idb = () => new Promise((res, rej) => { const r = indexedDB.open('npt', 1); r.onupgradeneeded = () => r.result.createObjectStore('series'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
