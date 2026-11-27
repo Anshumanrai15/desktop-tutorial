@@ -103,6 +103,7 @@
   <div class="card">
     <div class="toolbar"><div class="title">Your watchlist</div><span class="spacer"></span><span class="muted small">Tap ☆ next to any stock's name to add it</span></div>
     <div id="watchList" class="watchlist"></div>
+    <p class="muted small bk-note">Your watchlist is saved in this browser only. <a href="#" class="bk-save">Back up</a> · <a href="#" class="bk-load">Restore</a></p>
   </div>
 </section>
 
@@ -248,7 +249,7 @@
       <div id="apLog" class="small muted"></div>
     </div>
   </div>
-  <div class="card"><div class="toolbar"><div class="title">Holdings</div><span class="spacer"></span><button id="ptReset" class="ghost danger">Reset account</button></div><div class="tablewrap"><table id="ptHoldings"></table></div></div>
+  <div class="card"><div class="toolbar pt-tools"><div class="title">Holdings</div><span class="spacer"></span><button class="ghost bk-save" title="Save your paper account, watchlist and settings to a file">⬇ Backup</button><button class="ghost bk-load" title="Load a backup file">⬆ Restore</button><button id="ptReset" class="ghost danger">Reset account</button></div><div class="tablewrap"><table id="ptHoldings"></table></div></div>
   <div class="card"><div class="title">Account equity</div><div id="ptEquity" class="chart small"></div></div>
   <details class="card"><summary>Order history</summary><div class="tablewrap"><table id="ptOrders"></table></div></details>
 </section>
@@ -358,6 +359,11 @@
 <!-- ═════════════ DATA ═════════════ -->
 <section id="tab-data" class="tab">
   <div class="card">
+    <div class="title">Your saved data</div>
+    <p class="small">Your paper account, watchlist, chart drawings, settings and challenge scores are saved in this browser only, not online. Clearing your browser data, or not using the site for a while on an iPhone, can erase them. Make a backup file to keep them safe or to move them to another phone or computer.</p>
+    <div class="toolbar wrap"><button class="primary bk-save">⬇ Download backup</button><button class="bk-load">⬆ Restore from backup</button><span id="bkLast" class="muted small"></span></div>
+  </div>
+  <div class="card">
     <div class="web-only">
       <div class="title">About the data</div>
       <p>Daily prices for the Nifty 100 stocks and main indices, going back up to 30 years. They update automatically after the market closes every weekday, from Yahoo Finance and NSE's official end-of-day files.</p>
@@ -430,11 +436,13 @@
   <div class="tour-dots" id="tourDots"></div>
   <div class="toolbar"><button id="tourBack" class="ghost">Back</button><span class="spacer"></span><button id="tourAlt" class="ghost" hidden></button><button id="tourNext" class="primary">Next</button></div>
 </div>
+<input type="file" id="bkFile" accept=".json,application/json" hidden>
 <div id="toast"></div>
 <script src="js/app.js"></script>
 <script src="js/reality.js"></script>
 <script src="js/challenge.js"></script>
 <script src="js/options.js"></script>
 <script src="js/guide.js"></script>
+<script src="js/backup.js"></script>
 </body>
 </html>

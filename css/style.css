@@ -428,3 +428,12 @@ nav button.guide-btn { display: none; }
 @media (max-width: 760px) { button.hdr-guide { display: none; } nav button.guide-btn { display: inline-block; } }
 button.hdr-guide.pulse { animation: guidePulse 1.6s ease-in-out 3; }
 nav button.guide-btn { padding-left: 10px; padding-right: 10px; }
+
+/* ── backup / restore ── */
+.bk-note { margin: 10px 2px 0; }
+@media (max-width: 760px) {
+  .pt-tools { flex-wrap: wrap; row-gap: 8px; }
+  .pt-tools .title { flex: 1 1 100%; }
+  .pt-tools .spacer { display: none; }
+  .pt-tools button { flex: 1 1 0; padding: 8px 4px; font-size: 13px; white-space: nowrap; }
+}
