@@ -3,8 +3,12 @@
 name: Update data and publish site
 
 on:
+  # GitHub often starts scheduled runs late (sometimes by hours) or skips them, so there are
+  # backups. Extra runs are harmless: data already on the site is kept, and only newer days are added.
   schedule:
     - cron: '47 12 * * 1-5'   # 18:17 IST, Mon–Fri, after market close
+    - cron: '23 15 * * 1-5'   # 20:53 IST, backup
+    - cron: '41 1 * * 2-6'    # 07:11 IST next morning, backup
   workflow_dispatch:          # "Run workflow" button in the Actions tab
   push:
     branches: [main]
