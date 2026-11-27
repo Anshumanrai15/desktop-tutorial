@@ -485,7 +485,7 @@
     if (!ptChart) { ptChart = LC.createChart($('ptEquity'), { ...chartOpts(260), localization: { priceFormatter: compactINR } }); autoResize(ptChart, $('ptEquity')); ptSeries = ptChart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,0.25)', bottomColor: 'rgba(59,130,246,0)', priceLineVisible: false }); }
     ptSeries.setData(acct.hist); ptChart.timeScale().fitContent(); updateLtp();
     let note = $('ptEqNote'); if (!note) { note = el('div', { id: 'ptEqNote', className: 'muted small' }); $('ptEquity').before(note); }
-    note.textContent = acct.hist.length < 2 ? 'The equity curve builds up day by day as you update data and revisit this tab.' : '';
+    note.textContent = acct.hist.length < 2 ? 'The equity curve builds up day by day as new prices arrive and you revisit this tab.' : '';
   }
   function updateLtp() { const q = ltp(S.sym); if (!q) return; const ch = dayChg(S.sym); $('ptLtp').innerHTML = `₹${fmt(q.px)} <span class="small ${cls(ch)}">${pct(ch)}</span> <span class="muted small">close on ${q.date}</span>`;
     const px = $('ptType').value === 'MARKET' ? q.px : +$('ptPrice').value || q.px; $('ptValue').value = inr((+$('ptQty').value || 0) * px); }
