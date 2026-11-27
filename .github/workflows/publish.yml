@@ -1,15 +1,22 @@
-# Downloads fresh Nifty 100 data every weekday evening and publishes the app to GitHub Pages.
+# Downloads fresh Nifty 100 data and publishes the app to GitHub Pages.
 # The data is not committed to git; it is downloaded on GitHub's servers and goes straight into the website.
+#
+# Safety net, so prices never silently go stale:
+#  1. A quick check runs every hour from 18:17 IST to 10:17 IST the next morning (weekdays). It compares the
+#     live site with NSE's newest official closing prices and only rebuilds when the site is behind, so a
+#     late or skipped GitHub run is covered by the next one.
+#  2. After every publish, the live site is checked again. If it still doesn't have NSE's latest prices,
+#     the run fails and a GitHub issue titled "Prices are not up to date" is opened, which notifies the
+#     repository owner by email. The issue closes itself once prices are current again.
+#  3. Each run renews the schedule, so GitHub never switches it off after 60 quiet days.
 name: Update data and publish site
 
 on:
-  # GitHub often starts scheduled runs late (sometimes by hours) or skips them, so there are
-  # backups. Extra runs are harmless: data already on the site is kept, and only newer days are added.
   schedule:
-    - cron: '47 12 * * 1-5'   # 18:17 IST, Mon–Fri, after market close
-    - cron: '23 15 * * 1-5'   # 20:53 IST, backup
-    - cron: '41 1 * * 2-6'    # 07:11 IST next morning, backup
-  workflow_dispatch:          # "Run workflow" button in the Actions tab
+    - cron: '47 12 * * 1-5'    # 18:17 IST, Mon–Fri, after market close
+    - cron: '17 13-23 * * 1-5' # then hourly, 18:47 IST to 04:47 IST
+    - cron: '17 0-4 * * 2-6'   # and 05:47 IST to 09:47 IST the next morning
+  workflow_dispatch:           # "Run workflow" button in the Actions tab
   push:
     branches: [main]
 
@@ -17,13 +24,30 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
+  actions: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  # Is the live site behind NSE? Takes a few seconds; scheduled runs stop here when it's up to date.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stale: ${{ steps.c.outputs.stale }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: c
+        run: python3 check_fresh.py check
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
   build:
+    needs: check
+    if: github.event_name != 'schedule' || needs.check.outputs.stale == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -59,3 +83,51 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Confirm the live site now has NSE's latest prices (GitHub Pages can take a minute to switch over).
+  verify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          for i in 1 2 3 4; do
+            python3 check_fresh.py verify && exit 0
+            echo "Not current yet, checking again in 60 s…"; sleep 60
+          done
+          exit 1
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+  # Opens (or closes) a "Prices are not up to date" issue so problems reach the owner by email,
+  # and renews the schedule so it is never switched off for inactivity.
+  alert:
+    needs: [check, build, deploy, verify]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Keep the schedule active
+        run: gh api -X PUT "repos/$GH_REPO/actions/workflows/publish.yml/enable" || true
+      - name: Report the result
+        run: |
+          gh label create prices-stale --color B60205 --description "Opened automatically when live prices are behind NSE" 2>/dev/null || true
+          open=$(gh issue list --label prices-stale --state open --json number --jq '.[0].number')
+          bad="${{ needs.build.result == 'failure' || needs.deploy.result == 'failure' || needs.verify.result == 'failure' }}"
+          good="${{ needs.verify.result == 'success' || needs.check.outputs.stale == 'false' }}"
+          run="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "$bad" = "true" ] && [ -z "$open" ]; then
+            gh issue create --label prices-stale --title "Prices are not up to date" --body "The automatic update could not bring the live site up to NSE's latest closing prices.
+
+          Details of the failed run: $run
+
+          The update tries again every hour in the evening and the next morning, and this issue closes itself once prices are current. If it stays open, open the run above, copy the red error text and ask for help."
+          elif [ "$bad" = "true" ]; then
+            gh issue comment "$open" --body "Still not up to date after another try: $run"
+          elif [ "$good" = "true" ] && [ -n "$open" ]; then
+            gh issue close "$open" --comment "Fixed: the live site has NSE's latest prices again ($run)."
+          fi
